@@ -298,6 +298,19 @@ details{padding:14px 16px}details+details{margin-top:10px}
 .vis2{margin-bottom:14px}
 .week{gap:7px}.week button{padding:11px 4px}
 h1{margin-bottom:4px}
+/* profile / nested boxes */
+.card details.nested{background:var(--bg3);box-shadow:none;border:0;margin:14px 0 0;padding:14px 16px}
+.card details.nested .body{margin-top:12px}
+.kv{display:grid;grid-template-columns:72px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.kv:last-of-type{border-bottom:0}
+.kv span:first-child{color:var(--ink3);font-weight:700}
+.kv span:last-child{overflow-wrap:anywhere;word-break:break-all;font-variant-numeric:tabular-nums}
+#sbTestMsg{overflow-wrap:anywhere}
+@media(max-width:430px){.grid2.stackable{grid-template-columns:1fr}}
+.quickreps{display:flex;gap:8px;margin-top:10px}
+.quickreps .btn{flex:1;min-height:44px;font-size:16px;font-variant-numeric:tabular-nums}
+.card>.row.between>div:first-child{min-width:0}
+.field label{overflow-wrap:anywhere}
 .field{margin-bottom:14px}
 .overlay .box .stack .btn{min-height:52px}
 .overlay .box h2{padding-right:10px}
@@ -844,7 +857,7 @@ FULL_CATALOGUE.forEach(r=>{ if(EX[r.i]) return; const cardio=r.g==="Cardio", str
 /* ===================== STORAGE ===================== */
 const KEY = "gym_tracker_v2"; // fresh start: previous v1 data is left untouched but not loaded
 const fresh = () => ({
-  settings:{ protein:90, program:"trainer", videos:{}, schedule:{...DEFAULT_SCHEDULE}, nextDay:1, defaultDb:3, rest:90, restCompound:120, reminders:false, names:{} },
+  settings:{ protein:90, program:"trainer", videos:{}, schedule:{...DEFAULT_SCHEDULE}, nextDay:1, defaultDb:3, defaultPlates:2, defaultReps:15, rest:90, restCompound:120, reminders:false, names:{} },
   weights:{}, history:[], measurements:[], nutrition:{}, active:null, exclude:{}, skips:{}, routine:{}, lastBackup:null, localUpdatedAt:null
 });
 let S = load();
@@ -997,18 +1010,17 @@ function visBlock(e){
     : `<div class="videoempty"><div class="videoicon">▶</div><h3>Add a real demo video</h3><p class="small" style="margin:6px 0 14px">Find a video of this exercise you trust (or one your trainer recommends), copy its link, and paste it here. It will play in this spot every time.</p><div class="grid2"><a class="btn" href="${yt}" target="_blank" rel="noopener">Find on YouTube</a><button class="btn primary" onclick="videoSheet('${e.id}')">Paste link</button></div></div>`;
   const modes=[["video","Video"],...(ph?[["photo","Real photos"]]:[]),...(e.visual?[["anim","Animation"]]:[])];
   const mode = modes.some(m=>m[0]===visMode)?visMode:"video";
-  return `<div id="visbox" data-ex="${e.id}"><div class="seg" style="margin-bottom:10px">${modes.map(([k,l])=>`<button class="${mode===k?"on":""}" onclick="setVis('${k}','${e.id}')">${l}</button>`).join("")}</div>
+  return `<div class="seg" style="margin-bottom:10px">${modes.map(([k,l])=>`<button class="${mode===k?"on":""}" onclick="visMode='${k}';render()">${l}</button>`).join("")}</div>
   <div class="vis2"><div>${mode==="video"?video:mode==="photo"?photos:anim}</div><div class="musclemap">${e.map}</div></div>
-  <div class="row wrap" style="margin-bottom:12px">${muscleLegend(e.id)}</div></div>`;
+  <div class="row wrap" style="margin-bottom:12px">${muscleLegend(e.id)}</div>`;
 }
-function setVis(mode,id){ visMode=mode; const box=document.getElementById("visbox"); if(box && box.dataset.ex===id){ box.outerHTML=visBlock(EX[id]); kickAnims(document.getElementById("modal")||document); } else { render(); } }
 function videoSheet(id){ const cur=(S.settings.videos||{})[id]||"";
   modal(`<h2>Demo video for ${esc(exName(id))}</h2><p class="small" style="margin:8px 0 12px">Paste a YouTube link (normal, Shorts or with a start time) and it plays inside the app. Any other link (Instagram, your trainer's Drive video) is saved as an open button.</p>
   <div class="field"><label>Video link</label><input id="vurl" inputmode="url" placeholder="https://youtu.be/..." value="${esc(cur)}"></div>
   <div class="stack"><button class="btn primary block" onclick="saveVideo('${id}')">Save video</button>${cur?`<button class="btn danger block" onclick="S.settings.videos['${id}']='';delete S.settings.videos['${id}'];save();closeModal();render();toast('Video removed')">Remove video</button>`:""}<button class="btn ghost block sm" onclick="closeModal()">Cancel</button></div>
   <div class="muted small" style="margin-top:12px">Tip: on your phone, open the video in YouTube, tap Share, Copy link, then paste here. Add &t=45 to a link to start at 45 seconds.</div>`);
   setTimeout(()=>document.getElementById("vurl")?.focus(),100); }
-function saveVideo(id){ const v=document.getElementById("vurl").value.trim(); if(!/^https?:\/\//i.test(v)){ toast("Paste a full link starting with https://"); return; } S.settings.videos=S.settings.videos||{}; S.settings.videos[id]=v; save(); closeModal(); visMode="video"; const box=document.getElementById("visbox"); if(box && box.dataset.ex===id){ box.outerHTML=visBlock(EX[id]); kickAnims(document.getElementById("modal")||document); } else render(); toast(ytId(v)?"Video saved, it will play here":"Link saved"); }
+function saveVideo(id){ const v=document.getElementById("vurl").value.trim(); if(!/^https?:\/\//i.test(v)){ toast("Paste a full link starting with https://"); return; } S.settings.videos=S.settings.videos||{}; S.settings.videos[id]=v; save(); closeModal(); visMode="video"; render(); toast(ytId(v)?"Video saved, it will play here":"Link saved"); }
 /* ===================== DAILY TIPS (progression coach) ===================== */
 function exSessions(id){ return S.history.filter(h=>h.sets.some(s=>s.ex===id)).sort((a,b)=>new Date(a.date)-new Date(b.date)); }
 function nextLoadText(e,w){ if(e.unit==="kg"){ const n=Number(w)||0; if(n<5) return `${n} kg to ${n+1} kg (or ${n+2} kg if your gym has no ${n+1} kg dumbbell)`; return `${n} kg to ${n+2} kg`; } if(e.unit==="plates") return `${w||"your current"} plates to one plate more`; if(e.unit==="machine") return `setting ${w||""} to one setting up`; if(e.unit==="seconds") return "add 10 seconds to each hold"; return "add 2 reps per set, or slow the lowering to 3 seconds"; }
@@ -1045,7 +1057,7 @@ function vHome(){
       <div class="grid2" style="margin-top:14px"><button class="btn block" onclick="chooseDay()">Train anyway</button><button class="btn block" onclick="go('nutrition')">Log protein</button></div></div>`;
   const streak=currentStreak(), wk=weekWorkouts(), total=S.history.length;
   const prot = todayProtein();
-  return `<div class="row between" style="margin-bottom:14px"><h1>Hi Meet</h1><span class="muted small" id="cloudchip">${sbSignedIn()?cloudLabel():`<a href="#" onclick="go('profile');setTimeout(()=>document.getElementById('cloud')?.scrollIntoView({behavior:'smooth'}),80);return false" style="text-decoration:none;color:var(--ink3)">☁ Set up cloud sync</a>`}</span></div>${hero}
+  return `<div class="row between" style="margin-bottom:14px"><h1>Hi Farhan</h1><span class="muted small" id="cloudchip">${sbSignedIn()?cloudLabel():`<a href="#" onclick="go('profile');setTimeout(()=>document.getElementById('cloud')?.scrollIntoView({behavior:'smooth'}),80);return false" style="text-decoration:none;color:var(--ink3)">☁ Set up cloud sync</a>`}</span></div>${hero}
   <div class="grid3">
     <div class="card tight row" style="gap:10px"><div class="ringmini"><svg viewBox="0 0 64 64" width="64" height="64"><circle cx="32" cy="32" r="27" fill="none" stroke="var(--bg3)" stroke-width="6"/><circle class="ringfill" cx="32" cy="32" r="27" fill="none" stroke="var(--teal)" stroke-width="6" stroke-linecap="round" stroke-dasharray="169.6" stroke-dashoffset="169.6" data-to="${169.6*(1-Math.min(1,wk/Math.max(1,trainingDays())))}"/></svg><b>${wk}/${trainingDays()}</b></div><div class="muted" style="font-size:13px">This week</div></div>
     <div class="card tight"><div class="muted">Streak</div><div style="font-size:26px;font-weight:800"><span class="countup" data-to="${streak}">0</span><span class="muted" style="font-size:14px"> days</span></div></div>
@@ -1103,7 +1115,9 @@ function vWorkout(){
   const A=S.active, day=PROGRAM.find(p=>p.id===A.dayId), list=dayExercises(day);
   if(A.i>=list.length) return vFinish();
   const id=list[A.i], e=EX[id], done=A.sets[id]||[], setNo=done.length+1, finishedEx=done.length>=e.sets, last=lastPerf(id);
-  const stored=S.weights[id]||{}; const defW = stored.w ?? (e.unit==="kg" ? (e.defaultWeight ?? S.settings.defaultDb) : "");
+  const stored=S.weights[id]||{}; const defW = stored.w ?? (e.unit==="kg" ? (e.defaultWeight ?? S.settings.defaultDb) : e.unit==="plates" ? (e.defaultWeight ?? S.settings.defaultPlates ?? 2) : "");
+  const lastReps = done.length ? done[done.length-1].reps : null; const defR = e.timed ? (lastReps ?? e.repMin) : (lastReps ?? S.settings.defaultReps ?? 15);
+  const quick = [...new Set([e.repMin, e.repMax, S.settings.defaultReps ?? 15].filter(n=>n>0))].sort((a,b)=>a-b);
   const w = done.length ? done[done.length-1].w : defW;
   const totalSets = list.reduce((n,x)=>n+EX[x].sets,0), doneSets = Object.values(A.sets).reduce((n,a)=>n+a.length,0);
   const step = (id,val,dec,inc,attrs="") => `<div class="stepper"><button type="button" aria-label="decrease" onclick="bump('${id}',${dec})">−</button><input id="${id}" ${attrs} value="${esc(val)}"><button type="button" aria-label="increase" onclick="bump('${id}',${inc})">+</button></div>`;
@@ -1113,9 +1127,9 @@ function vWorkout(){
     : e.unit==="machine" ? `<div><label>Machine setting</label>${step("w",plateNum(w),-1,1,'type="number" step="1" min="0" inputmode="numeric" placeholder="3"')}</div>`
     : `<div><label>Load</label><input type="text" id="w" value="Bodyweight" disabled></div>`;
   const tgt = e.timed ? `${e.repMin} to ${e.repMax} s` : `${e.repMin}${e.repMax!==e.repMin?" to "+e.repMax:""} reps`;
-  const repField = e.unilateral ? `<div class="lr"><div><label>Left reps (do first)</label>${step("rl","",-1,1,'type="number" min="0" inputmode="numeric" placeholder="'+e.repMin+'"')}</div><div><label>Right reps (match left)</label>${step("rr","",-1,1,'type="number" min="0" inputmode="numeric" placeholder="same"')}</div></div>`
-    : e.timed ? `<div><label>Seconds held</label>${step("r","",-5,5,'type="number" min="0" inputmode="numeric" placeholder="'+e.repMin+'"')}</div>`
-    : `<div><label>Reps, tap once per rep</label><div class="reppad" id="pad" onclick="padTap(${e.repMin},${e.repMax})"><b id="padN">0</b><span>tap to count, target ${tgt}</span></div><input type="hidden" id="r" value="0"><div class="row" style="margin-top:8px;justify-content:flex-end;gap:8px"><button class="btn sm ghost" type="button" onclick="padSet(-1,${e.repMin},${e.repMax})">−1</button><button class="btn sm ghost" type="button" onclick="padSet(0,${e.repMin},${e.repMax})">Reset</button></div></div>`;
+  const repField = e.unilateral ? `<div class="lr"><div><label>Left reps (do first)</label>${step("rl",defR,-1,1,'type="number" min="0" inputmode="numeric"')}</div><div><label>Right reps (match left)</label>${step("rr",defR,-1,1,'type="number" min="0" inputmode="numeric"')}</div></div>`
+    : e.timed ? `<div><label>Seconds held</label>${step("r",defR,-5,5,'type="number" min="0" inputmode="numeric"')}</div>`
+    : `<div><label>Reps (target ${tgt})</label>${step("r",defR,-1,1,'type="number" min="0" inputmode="numeric"')}${quick.length>1?`<div class="quickreps">${quick.map(n=>`<button type="button" class="btn sm ghost" onclick="setVal('r',${n})">${n}</button>`).join("")}</div>`:""}</div>`;
   return `<div class="row between" style="margin-bottom:6px"><span class="muted">Day ${day.id}: ${esc(day.short)}</span><span class="muted">Exercise ${A.i+1} of ${list.length}</span></div>
   <div class="progress" style="margin-bottom:16px"><i style="width:${doneSets/totalSets*100}%"></i></div>
   <h1 style="font-size:26px">${esc(exName(id))}</h1>
@@ -1139,6 +1153,7 @@ function vWorkout(){
   <button class="btn ghost block sm" style="margin-top:10px" onclick="resetToday()">Reset today</button>`;
 }
 function bump(id,d){ const el=document.getElementById(id); if(!el) return; const v=Math.max(0, Math.round(((Number(el.value)||0)+d)*2)/2); el.value=v; el.animate?.([{transform:"scale(1.15)"},{transform:"scale(1)"}],{duration:150}); if(navigator.vibrate) navigator.vibrate(8); }
+function setVal(id,v){ const el=document.getElementById(id); if(!el) return; el.value=v; el.animate?.([{transform:"scale(1.15)"},{transform:"scale(1)"}],{duration:150}); if(navigator.vibrate) navigator.vibrate(8); }
 function padTap(min,max){ padSet((Number(document.getElementById("r").value)||0)+1,min,max,true); }
 function padSet(v,min,max,abs){ const cur=Number(document.getElementById("r").value)||0; const n=Math.max(0, abs?v : (v===0?0:cur+v)); document.getElementById("r").value=n; const b=document.getElementById("padN"); b.textContent=n; b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); document.getElementById("pad").classList.toggle("hit", n>=min); if(navigator.vibrate) navigator.vibrate(n===max?[15,40,15]:8); }
 function completeSet(id){
@@ -1331,7 +1346,7 @@ function delFood(i){ S.nutrition[today()].splice(i,1); save(); render(); }
 function vProfile(){
   const st=S.settings; const ms=[...S.measurements].reverse();
   return `<h1 style="margin-bottom:12px">Profile</h1>
-  <div class="card"><div class="row between"><div><h2>Meet</h2><div class="muted">29, male, 178 cm, about 69 kg, vegetarian. Beginner, 6 days a week, Sunday off.</div></div></div>
+  <div class="card"><div class="row between"><div><h2>Farhan</h2><div class="muted">29, male, 178 cm, about 69 kg, vegetarian. Beginner, 6 days a week, Sunday off.</div></div></div>
   <p class="small" style="margin-top:10px">Goal: build muscle and strength, grow the arms, and keep a consistent six-day habit. Progress is measured in weights lifted, reps, and tape measurements, not in a promised size by a date.</p></div>
   <div class="sec" id="cloud"><h2>Cloud sync (Supabase)</h2></div>
   ${cloudCard()}
@@ -1345,7 +1360,9 @@ function vProfile(){
   <div class="sec"><h2>Settings</h2></div>
   <div class="card">
    <div class="field"><label>Daily protein target (g)</label><input type="number" id="sProt" value="${st.protein}"></div>
-   <div class="grid3"><div class="field"><label>Default dumbbell (kg)</label><input type="number" step="0.5" id="sDb" value="${st.defaultDb}"></div><div class="field"><label>Rest (s)</label><input type="number" id="sRest" value="${st.rest}"></div><div class="field"><label>Rest, big lifts (s)</label><input type="number" id="sRestC" value="${st.restCompound}"></div></div>
+   <div class="grid3"><div class="field"><label>Dumbbell (kg)</label><input type="number" step="0.5" id="sDb" value="${st.defaultDb}"></div><div class="field"><label>Plates</label><input type="number" step="1" id="sPlates" value="${st.defaultPlates ?? 2}"></div><div class="field"><label>Reps</label><input type="number" step="1" id="sReps" value="${st.defaultReps ?? 15}"></div></div>
+   <div class="muted small" style="margin:-4px 0 12px">Starting values for a new exercise. Once you log a set, the app remembers what you used.</div>
+   <div class="grid2"><div class="field"><label>Rest (s)</label><input type="number" id="sRest" value="${st.rest}"></div><div class="field"><label>Rest, big lifts (s)</label><input type="number" id="sRestC" value="${st.restCompound}"></div></div>
    <div class="field"><label>Training plan</label><div class="seg">${Object.values(PROGRAMS).map(pr=>`<button class="${S.settings.program===pr.key?"on":""}" onclick="setProgram('${pr.key}')">${esc(pr.name)}</button>`).join("")}</div><div class="muted small" style="margin-top:6px">${esc(PROGRAMS[S.settings.program].desc)} Your logged weights carry across both plans.</div></div>
    <div class="field"><label>Next workout in the rotation</label><div class="seg">${PROGRAM.map(dd=>`<button onclick="S.settings.nextDay=${dd.id};save();render();toast('Next up: Day ${dd.id}')" class="${nextDayId()===dd.id?'on':''}">Day ${dd.id} ${dd.short}</button>`).join("")}</div><div class="muted small" style="margin-top:6px">Training days cycle Day 1, 2, 3 in order. When you press Start you still choose; this is only the suggestion.</div></div>
    <div class="field"><label>Weekly schedule</label><div class="stack">${[1,2,3,4,5,6,0].map(d=>`<div class="row between"><span>${DAYNAMES[d]}</span><select style="width:170px" onchange="S.settings.schedule[${d}]=(this.value==='walk'||this.value==='train')?this.value:Number(this.value);save();toast('Schedule updated')">${[[0,"Rest"],["walk","Rest / light walk"],["train","Train (rotate 1, 2, 3)"],[1,"Always Day 1: Push"],[2,"Always Day 2: Pull"],[3,"Always Day 3: Legs"]].map(([v,l])=>`<option value="${v}" ${String(st.schedule[d])===String(v)?"selected":""}>${l}</option>`).join("")}</select></div>`).join("")}</div></div>
@@ -1373,7 +1390,7 @@ function vProfile(){
 }
 function addMeasure(){ const g=id=>{ const v=document.getElementById(id).value; return v===""?null:Number(v); }; const m={id:Date.now(), date:document.getElementById("mDate").value||today(), weight:g("mW"), armR:g("mAR"), armF:g("mAF"), chest:g("mC"), waist:g("mWa"), thigh:g("mT")}; if(m.weight==null&&m.armR==null&&m.armF==null&&m.chest==null&&m.waist==null&&m.thigh==null){toast("Enter at least one measurement");return;} S.measurements.push(m); S.measurements.sort((a,b)=>a.date.localeCompare(b.date)); save(); toast("Measurement saved"); render(); }
 function delMeasure(id){ S.measurements=S.measurements.filter(m=>m.id!==id); save(); render(); }
-function saveSettings(){ const st=S.settings; st.protein=Number(document.getElementById("sProt").value)||90; st.defaultDb=Number(document.getElementById("sDb").value)||3; st.rest=Number(document.getElementById("sRest").value)||90; st.restCompound=Number(document.getElementById("sRestC").value)||120; save(); toast("Settings saved"); render(); }
+function saveSettings(){ const st=S.settings; st.protein=Number(document.getElementById("sProt").value)||90; st.defaultDb=Number(document.getElementById("sDb").value)||3; st.defaultPlates=Number(document.getElementById("sPlates")?.value)||2; st.defaultReps=Number(document.getElementById("sReps")?.value)||15; st.rest=Number(document.getElementById("sRest").value)||90; st.restCompound=Number(document.getElementById("sRestC").value)||120; save(); toast("Settings saved"); render(); }
 async function exportData(){ S.lastBackup=today(); save(); const name=`gym_tracker_backup_${today()}.json`; const blob=new Blob([JSON.stringify({...cloudPayload(),localUpdatedAt:S.localUpdatedAt},null,2)],{type:"application/json"});
   try{ const file=new File([blob],name,{type:"application/json"}); if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:"Gym Tracker backup"}); toast("Backup shared"); render(); return; } }catch(e){ if(e&&e.name==="AbortError"){ render(); return; } }
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); toast("Backup downloaded"); render(); }
@@ -1423,20 +1440,20 @@ function cloudCard(){ const c=sb();
     <details><summary>Step 2: allow email sign-in</summary><div class="body small"><p>Authentication, Providers, Email: keep it enabled. If "Confirm email" is on, you will get one confirmation email when you create your account; click it once, then sign in here. Or turn Confirm email off for a single-user project.</p></div></details>
     <div class="field" style="margin-top:12px"><label>Project URL</label><input id="sbUrl" value="${esc(c.url||SB_DEFAULT_URL)}" inputmode="url"></div>
     <div class="field"><label>Anon public key (Project Settings, API)</label><input id="sbKey" placeholder="eyJhbGciOi..." value="${esc(c.key||"")}"></div>
-    <div class="grid2"><button class="btn" onclick="sbTest()">Test connection</button><button class="btn primary" onclick="sbSaveConfig()">Save and continue</button></div>
-    <div id="sbTestMsg" class="small" style="margin-top:10px"></div>
+    <div class="grid2 stackable"><button class="btn" onclick="sbTest()">Test connection</button><button class="btn primary" onclick="sbSaveConfig()">Save and continue</button></div>
+    <div id="sbTestMsg" class="small" style="margin-top:10px;line-height:1.6"></div>
     <div class="muted small" style="margin-top:8px">The anon key is designed to be public; the Row Level Security policies in the SQL are what keep your data private to your login.</div></div>`;
   if(!sbSignedIn()) return `<div class="card"><h3 style="margin-bottom:6px">Cloud sync: sign in</h3><p class="small" style="margin-bottom:12px">Project: ${esc(c.url)}</p>
     <div class="field"><label>Email</label><input id="sbEmail" type="email" autocomplete="username" value="${esc(c.email||"")}"></div>
     <div class="field"><label>Password</label><input id="sbPw" type="password" autocomplete="current-password" placeholder="At least 6 characters"></div>
     <div class="grid2"><button class="btn primary" onclick="sbDo('in')">Sign in</button><button class="btn" onclick="sbDo('up')">Create account</button></div>
     <div id="sbMsg" class="muted small" style="margin-top:8px"></div>
-    <div class="grid2" style="margin-top:10px"><button class="btn ghost sm" onclick="sbTest()">Test connection</button><button class="btn ghost sm" onclick="delete S.settings.supabase.key;save({fromCloud:true});render()">Change URL or key</button></div><div id="sbTestMsg" class="small" style="margin-top:8px"></div></div>`;
-  return `<div class="card"><div class="row between"><div><h3>Cloud sync is on</h3><div class="muted small">${esc(c.email||"")} · ${c.lastSync?`last synced ${fmtDate(c.lastSync)} ${fmtTime(c.lastSync)}`:"not synced yet"}${sbStatus?` · ${esc(sbStatus)}`:""}</div></div><span class="chip teal">Supabase</span></div>
+    <div class="grid2 stackable" style="margin-top:12px"><button class="btn ghost sm" onclick="sbTest()">Test connection</button><button class="btn ghost sm" onclick="delete S.settings.supabase.key;save({fromCloud:true});render()">Change URL or key</button></div><div id="sbTestMsg" class="small" style="margin-top:10px;line-height:1.6"></div></div>`;
+  return `<div class="card"><div class="row between" style="align-items:flex-start"><div style="min-width:0;flex:1"><h3>Cloud sync is on</h3><div class="muted small">${esc(c.email||"")} · ${c.lastSync?`last synced ${fmtDate(c.lastSync)} ${fmtTime(c.lastSync)}`:"not synced yet"}${sbStatus?` · ${esc(sbStatus)}`:""}</div></div><span class="chip teal">Supabase</span></div>
     <div class="grid2" style="margin-top:12px"><button class="btn" onclick="sbPull()">Sync now</button><button class="btn" onclick="sbPush(true).then(()=>{toast('Pushed to cloud');render();})">Force push</button></div>
     <div class="muted small" style="margin:10px 0">Every change saves to the phone first, then to Supabase a second later. On open, the app pulls the newest copy. If two devices disagree, the most recent save wins.</div>
-    <details style="box-shadow:none;border:1px solid var(--line)"><summary>Connection details</summary><div class="body small"><div>Project: ${esc(c.url)}</div><div>Key: ${esc(c.key.slice(0,12))}… </div><div>User id: ${esc(c.uid||"")}</div><div class="grid2" style="margin-top:10px"><button class="btn sm" onclick="sbTest()">Test connection</button><button class="btn sm ghost" onclick="sbSignOut(true);delete S.settings.supabase.key;save({fromCloud:true});render()">Change URL or key</button></div><div id="sbTestMsg" style="margin-top:8px"></div></div></details>
-    <button class="btn ghost block sm" style="margin-top:8px" onclick="sbSignOut()">Sign out on this device</button></div>`; }
+    <details class="nested"><summary>Connection details</summary><div class="body small"><div class="kv"><span>Project</span><span>${esc(c.url)}</span></div><div class="kv"><span>Key</span><span>${esc(c.key.slice(0,12))}…</span></div><div class="kv"><span>User id</span><span>${esc(c.uid||"")}</span></div><div class="grid2 stackable" style="margin-top:12px"><button class="btn sm" onclick="sbTest()">Test connection</button><button class="btn sm ghost" onclick="sbSignOut(true);delete S.settings.supabase.key;save({fromCloud:true});render()">Change URL or key</button></div><div id="sbTestMsg" class="small" style="margin-top:10px;line-height:1.6"></div></div></details>
+    <button class="btn ghost block sm" style="margin-top:14px" onclick="sbSignOut()">Sign out on this device</button></div>`; }
 async function sbTest(){ const msg=document.getElementById("sbTestMsg"); const url=(document.getElementById("sbUrl")?.value||sb().url||"").trim().replace(/\/$/,""), key=(document.getElementById("sbKey")?.value||sb().key||"").trim();
   if(!url||!key){ msg.textContent="Enter the project URL and anon key first."; return; } msg.textContent="Testing…"; const out=[];
   try{ const r=await fetch(url+"/auth/v1/settings",{headers:{apikey:key}}); if(r.ok){ const j=await r.json(); out.push("✓ Project reachable and key accepted"); out.push(j.external?.email!==false ? "✓ Email sign-in enabled" : "✗ Email sign-in is disabled in Authentication, Providers"); if(j.mailer_autoconfirm===false) out.push("i Confirm email is on: you will get one confirmation email after Create account"); } else if(r.status===401||r.status===403){ out.push("✗ Key rejected. Copy the anon public key from Project Settings, API"); } else out.push("✗ Project responded with "+r.status); }
@@ -1472,7 +1489,7 @@ function buildReport(){
   const css=`body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111318;margin:0;padding:28px;max-width:960px;margin:0 auto;line-height:1.4}h1{font-size:30px;letter-spacing:-.02em;margin:0 0 4px}h2{font-size:18px;margin:28px 0 10px;padding-top:14px;border-top:1px solid #E4E7EC}.m{color:#7C8391;font-size:12px}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:16px 0}.k{background:#F3F4F6;border-radius:14px;padding:12px}.k b{display:block;font-size:24px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px 6px;border-bottom:1px solid #E4E7EC;vertical-align:top;text-align:left}th{color:#7C8391;font-size:11px;text-transform:none}.sp{width:230px}.tag{display:inline-block;background:#F3F4F6;border-radius:999px;padding:3px 10px;font-size:12px;margin:2px}.btn{display:inline-block;background:#111318;color:#fff;padding:10px 16px;border-radius:12px;text-decoration:none;font-weight:700;border:0;font-size:14px;cursor:pointer}.warn{background:#FDE8E9;color:#8f1f24;border-radius:12px;padding:10px 12px;font-size:13px}@media print{.noprint{display:none}body{padding:0}}`;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gym Tracker report, ${today()}</title><style>${css}</style></head><body>
   <div class="noprint" style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:14px"><button class="btn" onclick="window.print()">Save as PDF / Print</button></div>
-  <h1>Meet, training report</h1><div class="m">Generated ${new Date().toLocaleString()} · ${esc(PROGRAMS[S.settings.program].name)} · 29, male, 178 cm, vegetarian · protein target ${S.settings.protein} g/day</div>
+  <h1>Farhan, training report</h1><div class="m">Generated ${new Date().toLocaleString()} · ${esc(PROGRAMS[S.settings.program].name)} · 29, male, 178 cm, vegetarian · protein target ${S.settings.protein} g/day</div>
   <div class="kpis"><div class="k"><b>${h.length}</b>workouts</div><div class="k"><b>${weeks}</b>weeks training</div><div class="k"><b>${weeks?(h.length/weeks).toFixed(1):0}</b>sessions / week</div><div class="k"><b>${sets.length}</b>sets</div><div class="k"><b>${reps}</b>total reps</div><div class="k"><b>${Math.round(mins/60*10)/10}</b>hours in the gym</div><div class="k"><b>${skips.length}</b>skipped days</div><div class="k"><b>${avgProt??"–"}</b>avg protein g/day${nutDays.length?` (${nutDays.length} logged days)`:""}</div></div>
   ${first?`<div class="m">First workout ${fmtDate(first.date)}, most recent ${fmtDate(last.date)}.</div>`:'<p>No workouts logged yet. The report fills in as you train.</p>'}
   ${pains.length?`<div class="warn" style="margin-top:12px">Pain reported after ${pains.length} session${pains.length>1?"s":""}: ${pains.map(x=>fmtDate(x.date)).join(", ")}. Worth mentioning to your trainer or a physio if it repeats.</div>`:""}
