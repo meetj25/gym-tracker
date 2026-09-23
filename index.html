@@ -119,7 +119,15 @@ nav .brand{display:none}
 .photos figure{margin:0;position:relative;border-radius:14px;overflow:hidden;aspect-ratio:4/3;background:#000}
 .pharrow{transform:rotate(90deg);text-align:center;height:22px;line-height:22px}
 @media(min-width:560px){.photos{grid-template-columns:1fr auto 1fr}.pharrow{transform:none}}
-.photos img{width:100%;height:100%;object-fit:cover;display:block}
+.photos img{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
+.photos figure{cursor:zoom-in;background:#fff}
+.phmotion{position:relative;aspect-ratio:3/2;background:#fff;border-radius:18px;overflow:hidden;cursor:zoom-in}
+.phmotion img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.phmotion img.b{animation:phswap 2.6s steps(1) infinite}
+@keyframes phswap{0%{opacity:0}50%{opacity:1}}
+.phtag{position:absolute;left:10px;bottom:10px;background:rgba(17,19,24,.78);color:#fff;font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px}
+.phfull{position:fixed;inset:0;background:#000;z-index:400;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+.phfull img{max-width:100%;max-height:78dvh;object-fit:contain;background:#fff;border-radius:12px}
 .photos figcaption{position:absolute;left:8px;bottom:8px;background:rgba(17,19,24,.75);color:#fff;padding:4px 9px 4px 5px;border-radius:999px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px}
 .photos figcaption b{width:18px;height:18px;border-radius:50%;background:var(--lime);color:var(--lime-ink);display:inline-flex;align-items:center;justify-content:center;font-size:11px}
 .pharrow{color:var(--lime);font-size:26px;font-weight:800}
@@ -929,6 +937,12 @@ function pickerSheet(dayId){ pkq=""; const d=PROGRAM.find(p=>p.id===dayId); cons
   ${sug.length?`<div class="sec" style="margin:12px 0 8px"><h2 style="font-size:16px">Suggested for Day ${dayId}</h2></div><div class="muted small" style="margin-bottom:8px">Picked for what this day is missing. Tap Add, or scroll down to search everything.</div>${sug.map(s=>`<div class="exrow" style="cursor:pointer" onclick="exDetail('${s.id}',${dayId})"><div class="thumb">${thumbOf(s.id)}</div><div style="flex:1;min-width:0"><div class="name">${esc(exName(s.id))} <span class="muted">›</span></div><div class="muted small">${esc(EX[s.id].equipment)}</div><div class="small" style="color:var(--teal);margin-top:2px">${esc(s.why)}</div></div><button class="btn sm primary" onclick="event.stopPropagation();addToDay(${dayId},'${s.id}');dayView(${dayId})">Add</button></div>`).join("")}<div class="sec" style="margin:16px 0 6px"><h2 style="font-size:16px">All ${EXERCISES.length} exercises</h2></div>`:""}
   <div class="search" style="margin:10px 0"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="pkq" placeholder="Search ${EXERCISES.length} exercises" oninput="pkq=this.value.trim().toLowerCase();document.getElementById('pkList').innerHTML=window._pkRows()"></div><div id="pkList">${window._pkRows()}</div>`);
   setTimeout(()=>document.getElementById("pkq")?.focus(),80); }
+function phZoom(id,idx){ const s=photoSrcs(id); if(!s) return; let i=idx==null?0:idx; const auto=idx==null;
+  const el=document.createElement('div'); el.className='phfull';
+  el.innerHTML=`<img src="${s[i]||s[0]}" alt="" onerror="imgFail(this)"><div class="row"><button class="btn sm" data-i="0">1 Start</button><button class="btn sm" data-i="1">2 Finish</button><button class="btn sm primary" data-x="1">Close</button></div>`;
+  let t=auto?setInterval(()=>{ i=i?0:1; el.querySelector('img').src=s[i]||s[0]; },1300):null;
+  el.onclick=ev=>{ const b=ev.target.closest('button'); if(!b) return; clearInterval(t); if(b.dataset.x){ el.remove(); return; } i=+b.dataset.i; el.querySelector('img').src=s[i]||s[0]; };
+  document.body.appendChild(el); }
 function photoSrcs(id){ if(PHOTOS[id]) return PHOTOS[id].img.map(b=>"data:image/jpeg;base64,"+b); if(typeof PHOTO_URLS!=="undefined"&&PHOTO_URLS[id]) return PHOTO_URLS[id]; return null; }
 function thumbOf(id){ const e=EX[id]; const s=photoSrcs(id); return s?`<img src="${s[1]||s[0]}" alt="" loading="lazy" onerror="imgFail(this,true)">`:(e.visual||'<span style="font-size:22px">🏋</span>'); }
 /* Apply the active program: reset every exercise to its defaults, then apply that program's sets/reps/name overrides. */
@@ -1078,7 +1092,24 @@ const DEFAULT_VIDEOS = {
   dumbbell_flyes:"https://www.youtube.com/watch?v=3_gz_iyVnhM",
   cable_crossover:"https://www.youtube.com/shorts/I-Ue34qLxc4",
   arnold_dumbbell_press:"https://www.youtube.com/watch?v=IuRL0F-SyjI",
-  seated_leg_curl:"https://www.youtube.com/shorts/EnZZIaPCb8k"
+  seated_leg_curl:"https://www.youtube.com/shorts/EnZZIaPCb8k",
+  machine_bench_press:"https://www.youtube.com/shorts/GuF3K9ucHwI",
+  leverage_incline_chest_press:"https://www.youtube.com/shorts/Z352OqLDXXk",
+  front_dumbbell_raise:"https://www.youtube.com/shorts/GSIPgf3oys4",
+  cable_rear_delt_fly:"https://www.youtube.com/shorts/FeERX9UwspY",
+  leverage_shoulder_press:"https://www.youtube.com/shorts/6v4nrRVySj0",
+  standing_dumbbell_upright_row:"https://www.youtube.com/shorts/CgAdfBs9JfA",
+  band_pull_apart:"https://www.youtube.com/shorts/YstDcHBZmOc",
+  dumbbell_one_arm_triceps_extension:"https://www.youtube.com/watch?v=lBUSrUegBvE",
+  seated_triceps_press:"https://www.youtube.com/shorts/b_r_LW4HEcM",
+  lying_dumbbell_tricep_extension:"https://www.youtube.com/watch?v=N5ImCU0mcpo",
+  alternate_hammer_curl:"https://www.youtube.com/shorts/sa1OBxTamoY",
+  zottman_curl:"https://www.youtube.com/shorts/fhYH9H1yuIo",
+  farmer_s_walk:"https://www.youtube.com/watch?v=lLAw6fUccKA",
+  bent_over_two_dumbbell_row:"https://www.youtube.com/shorts/PFTMBwL3GV0",
+  hack_squat:"https://www.youtube.com/watch?v=Lo7kMRa8i-I",
+  dumbbell_step_ups:"https://www.youtube.com/shorts/5ksu8nrdVIE",
+  standing_dumbbell_calf_raise:"https://www.youtube.com/shorts/hzugds_d2Hk"
   // trainer_seated_db and trainer_slide_leg: no default until the trainer confirms the exercise
 };
 function ownVideo(id){ return (S.settings.videos||{})[id]||""; }
@@ -1088,7 +1119,7 @@ function ytId(url){ const m=String(url||"").match(/(?:youtube\.com\/(?:watch\?(?
 function ytStart(url){ const m=String(url||"").match(/[?&#](?:t|start)=(\d+)/); return m?Number(m[1]):0; }
 function visBlock(e){
   const srcs=photoSrcs(e.id); const ph=!!srcs; const online=!PHOTOS[e.id]&&ph; const vid=videoFor(e.id); const isDef=!ownVideo(e.id)&&!!vid; const yid=ytId(vid);
-  const photos = ph ? `<div class="photos"><figure><img src="${srcs[0]}" alt="${esc(exName(e.id))}, start position" loading="lazy" onerror="imgFail(this)"><figcaption><b>1</b> Start</figcaption></figure><div class="pharrow">›</div><figure><img src="${srcs[1]||srcs[0]}" alt="${esc(exName(e.id))}, finish position" loading="lazy" onerror="imgFail(this)"><figcaption><b>2</b> Finish</figcaption></figure></div>${online?'<div class="muted small" style="margin-top:6px">Photos for this exercise load from the internet.</div>':""}` : "";
+  const photos = ph ? `<div class="phmotion" onclick="phZoom('${e.id}')" title="Tap to enlarge"><img src="${srcs[0]}" alt="${esc(exName(e.id))}, start position" loading="lazy" onerror="imgFail(this)"><img class="b" src="${srcs[1]||srcs[0]}" alt="${esc(exName(e.id))}, finish position" loading="lazy" onerror="imgFail(this)"><span class="phtag">Start ⇄ Finish · tap to enlarge</span></div><div class="photos" style="margin-top:8px"><figure onclick="phZoom('${e.id}',0)"><img src="${srcs[0]}" alt="" loading="lazy" onerror="imgFail(this)"><figcaption><b>1</b> Start</figcaption></figure><div class="pharrow">›</div><figure onclick="phZoom('${e.id}',1)"><img src="${srcs[1]||srcs[0]}" alt="" loading="lazy" onerror="imgFail(this)"><figcaption><b>2</b> Finish</figcaption></figure></div>${online?'<div class="muted small" style="margin-top:6px">Photos load from the internet.</div>':""}` : "";
   const t = e.tempo || ["Lift","Hold","Lower slowly"];
   const anim = `<div class="exvis">${e.visual}</div>
     <div class="tempo" aria-label="rep tempo"><div class="tphase" style="flex:4"><b>${esc(t[0])}</b><span>1 s</span></div><div class="tphase" style="flex:1"><b>${esc(t[1])}</b></div><div class="tphase" style="flex:5"><b>${esc(t[2])}</b><span>2 s</span></div><i class="tmark"></i></div>`;
@@ -1097,7 +1128,7 @@ function visBlock(e){
     : vid ? `<div class="videolink"><a class="btn primary block" href="${esc(vid)}" target="_blank" rel="noopener">▶ Open your saved video</a><button class="btn sm ghost block" style="margin-top:8px" onclick="videoSheet('${e.id}')">Change link</button></div>`
     : `<div class="videoempty"><div class="videoicon">▶</div><h3>Watch a demo</h3><p class="small" style="margin:6px 0 14px">Opens YouTube Shorts for this exact exercise. Like one? Copy its link and tap Save to play it here every time.</p><div class="grid2"><a class="btn primary" href="${yt}" target="_blank" rel="noopener">▶ Watch on YouTube</a><button class="btn" onclick="videoSheet('${e.id}')">Save a link</button></div></div>`;
   const modes=[["video","Video"],...(ph?[["photo","Real photos"]]:[]),...(e.visual?[["anim","Animation"]]:[])];
-  const mode = modes.some(m=>m[0]===visMode)?visMode:"video";
+  let mode = modes.some(m=>m[0]===visMode)?visMode:"video"; if(mode==="video"&&!vid&&ph) mode="photo"; // no video yet: show the real photos first
   return `<div class="visblock" data-ex="${e.id}"><div class="seg" style="margin-bottom:10px">${modes.map(([k,l])=>`<button class="${mode===k?"on":""}" onclick="setVis('${k}',this)">${l}</button>`).join("")}</div>
   <div class="vis2"><div>${mode==="video"?video:mode==="photo"?photos:anim}</div><div class="musclemap">${e.map}</div></div>
   <div class="row wrap" style="margin-bottom:12px">${muscleLegend(e.id)}</div></div>`;
