@@ -1002,17 +1002,44 @@ function suggestion(exId, sets, rating){
 }
 
 /* ===================== EXERCISE VISUAL (photo + animation) ===================== */
+/* Default demo videos (YouTube Shorts). Used only when the user has not saved their own link.
+   User links in S.settings.videos always win, so existing data and progress are untouched. */
+const DEFAULT_VIDEOS = {
+  chest_press:"https://www.youtube.com/shorts/VHIlmOPMWWs",
+  pec_fly:"https://www.youtube.com/shorts/CRroep849bU",
+  shoulder_press:"https://www.youtube.com/shorts/6v4nrRVySj0",
+  lateral_raise:"https://www.youtube.com/shorts/lMYs7FY8os4",
+  triceps_pushdown:"https://www.youtube.com/shorts/aHfbuBf1TJk",
+  overhead_triceps:"https://www.youtube.com/shorts/8z2Ha0wLlsQ",
+  pushup:"https://www.youtube.com/shorts/ba8tr1NzwXU",
+  lat_pulldown:"https://www.youtube.com/shorts/bNmvKpJSWKM",
+  seated_row:"https://www.youtube.com/shorts/8QuMq1GMMng",
+  rear_delt_fly:"https://www.youtube.com/shorts/BmJHBBZRpZg",
+  one_arm_row:"https://www.youtube.com/shorts/WkFX6_GxAs8",
+  biceps_curl:"https://www.youtube.com/shorts/MKWBV29S6c0",
+  hammer_curl:"https://www.youtube.com/shorts/sa1OBxTamoY",
+  cable_curl:"https://www.youtube.com/shorts/CrbTqNOlFgE",
+  squat:"https://www.youtube.com/shorts/v11kHAdZZC8",
+  leg_press:"https://www.youtube.com/shorts/1PTD0mfKOQg",
+  leg_extension:"https://www.youtube.com/shorts/iQ92TuvBqRo",
+  leg_curl:"https://www.youtube.com/shorts/_lgE0gPvbik",
+  calf_raise:"https://www.youtube.com/shorts/hzugds_d2Hk",
+  plank:"https://www.youtube.com/shorts/v25dawSzRTM"
+  // trainer_seated_db and trainer_slide_leg: no default until the trainer confirms the exercise
+};
+function ownVideo(id){ return (S.settings.videos||{})[id]||""; }
+function videoFor(id){ return ownVideo(id)||DEFAULT_VIDEOS[id]||""; }
 let visMode="video";
 function ytId(url){ const m=String(url||"").match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/); return m?m[1]:null; }
 function ytStart(url){ const m=String(url||"").match(/[?&#](?:t|start)=(\d+)/); return m?Number(m[1]):0; }
 function visBlock(e){
-  const srcs=photoSrcs(e.id); const ph=!!srcs; const online=!PHOTOS[e.id]&&ph; const vid=(S.settings.videos||{})[e.id]; const yid=ytId(vid);
+  const srcs=photoSrcs(e.id); const ph=!!srcs; const online=!PHOTOS[e.id]&&ph; const vid=videoFor(e.id); const isDef=!ownVideo(e.id)&&!!vid; const yid=ytId(vid);
   const photos = ph ? `<div class="photos"><figure><img src="${srcs[0]}" alt="${esc(exName(e.id))}, start position" loading="lazy"><figcaption><b>1</b> Start</figcaption></figure><div class="pharrow">›</div><figure><img src="${srcs[1]||srcs[0]}" alt="${esc(exName(e.id))}, finish position" loading="lazy"><figcaption><b>2</b> Finish</figcaption></figure></div>${online?'<div class="muted small" style="margin-top:6px">Photos for this exercise load from the internet.</div>':""}` : "";
   const t = e.tempo || ["Lift","Hold","Lower slowly"];
   const anim = `<div class="exvis">${e.visual}</div>
     <div class="tempo" aria-label="rep tempo"><div class="tphase" style="flex:4"><b>${esc(t[0])}</b><span>1 s</span></div><div class="tphase" style="flex:1"><b>${esc(t[1])}</b></div><div class="tphase" style="flex:5"><b>${esc(t[2])}</b><span>2 s</span></div><i class="tmark"></i></div>`;
   const yt = `https://www.youtube.com/results?search_query=${encodeURIComponent(exName(e.id).replace(/\(.*?\)/g,"")+" proper form tutorial")}`;
-  const video = yid ? `<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${yid}?rel=0&modestbranding=1&playsinline=1${ytStart(vid)?"&start="+ytStart(vid):""}" title="${esc(exName(e.id))} demo video" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div><div class="row between" style="margin-top:8px"><span class="muted small">Your saved demo video. Needs internet.</span><button class="btn sm ghost" onclick="videoSheet('${e.id}')">Change</button></div>`
+  const video = yid ? `<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${yid}?rel=0&modestbranding=1&playsinline=1${ytStart(vid)?"&start="+ytStart(vid):""}" title="${esc(exName(e.id))} demo video" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div><div class="row between" style="margin-top:8px"><span class="muted small">${isDef?"Suggested demo video":"Your saved demo video"}. Needs internet.</span><button class="btn sm ghost" onclick="videoSheet('${e.id}')">${isDef?"Use my own":"Change"}</button></div>`
     : vid ? `<div class="videolink"><a class="btn primary block" href="${esc(vid)}" target="_blank" rel="noopener">▶ Open your saved video</a><button class="btn sm ghost block" style="margin-top:8px" onclick="videoSheet('${e.id}')">Change link</button></div>`
     : `<div class="videoempty"><div class="videoicon">▶</div><h3>Add a real demo video</h3><p class="small" style="margin:6px 0 14px">Find a video of this exercise you trust (or one your trainer recommends), copy its link, and paste it here. It will play in this spot every time.</p><div class="grid2"><a class="btn" href="${yt}" target="_blank" rel="noopener">Find on YouTube</a><button class="btn primary" onclick="videoSheet('${e.id}')">Paste link</button></div></div>`;
   const modes=[["video","Video"],...(ph?[["photo","Real photos"]]:[]),...(e.visual?[["anim","Animation"]]:[])];
@@ -1023,10 +1050,10 @@ function visBlock(e){
 }
 function setVis(k,btn){ visMode=k; const wrap=btn&&btn.closest(".visblock"); if(!wrap){ render(); return; } const e=EX[wrap.dataset.ex]; if(!e){ render(); return; }
   const tmp=document.createElement("div"); tmp.innerHTML=visBlock(e); const fresh=tmp.firstElementChild; wrap.replaceWith(fresh); kickAnims(fresh); }
-function videoSheet(id){ const cur=(S.settings.videos||{})[id]||"";
+function videoSheet(id){ const cur=ownVideo(id); const def=DEFAULT_VIDEOS[id]||"";
   modal(`<h2>Demo video for ${esc(exName(id))}</h2><p class="small" style="margin:8px 0 12px">Paste a YouTube link (normal, Shorts or with a start time) and it plays inside the app. Any other link (Instagram, your trainer's Drive video) is saved as an open button.</p>
-  <div class="field"><label>Video link</label><input id="vurl" inputmode="url" placeholder="https://youtu.be/..." value="${esc(cur)}"></div>
-  <div class="stack"><button class="btn primary block" onclick="saveVideo('${id}')">Save video</button>${cur?`<button class="btn danger block" onclick="S.settings.videos['${id}']='';delete S.settings.videos['${id}'];save();closeModal();render();toast('Video removed')">Remove video</button>`:""}<button class="btn ghost block sm" onclick="closeModal()">Cancel</button></div>
+  <div class="field"><label>Video link</label><input id="vurl" inputmode="url" placeholder="${def?esc(def):"https://youtu.be/..."}" value="${esc(cur)}"></div>
+  <div class="stack"><button class="btn primary block" onclick="saveVideo('${id}')">Save video</button>${cur?`<button class="btn danger block" onclick="S.settings.videos['${id}']='';delete S.settings.videos['${id}'];save();closeModal();render();toast(DEFAULT_VIDEOS['${id}']?'Back to suggested video':'Video removed')">${def?"Remove mine, use suggested":"Remove video"}</button>`:""}<button class="btn ghost block sm" onclick="closeModal()">Cancel</button></div>
   <div class="muted small" style="margin-top:12px">Tip: on your phone, open the video in YouTube, tap Share, Copy link, then paste here. Add &t=45 to a link to start at 45 seconds.</div>`);
   setTimeout(()=>document.getElementById("vurl")?.focus(),100); }
 function saveVideo(id){ const v=document.getElementById("vurl").value.trim(); if(!/^https?:\/\//i.test(v)){ toast("Paste a full link starting with https://"); return; } S.settings.videos=S.settings.videos||{}; S.settings.videos[id]=v; save(); closeModal(); visMode="video"; render(); toast(ytId(v)?"Video saved, it will play here":"Link saved"); }
