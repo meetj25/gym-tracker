@@ -1242,10 +1242,10 @@ function vWorkout(){
   const A=S.active, day=PROGRAM.find(p=>p.id===A.dayId), list=dayExercises(day);
   if(A.i>=list.length) return vFinish();
   const id=list[A.i], e=EX[id], done=A.sets[id]||[], setNo=done.length+1, finishedEx=done.length>=e.sets, last=lastPerf(id);
-  const stored=S.weights[id]||{}; const defW = stored.w ?? (e.unit==="kg" ? (e.defaultWeight ?? S.settings.defaultDb) : e.unit==="plates" ? (e.defaultWeight ?? S.settings.defaultPlates ?? 2) : "");
+  const stored=S.weights[id]||{}; const defW = (stored.w!=null&&stored.w!=="") ? stored.w : (e.unit==="kg" ? (e.defaultWeight ?? S.settings.defaultDb) : e.unit==="plates" ? (e.defaultWeight ?? S.settings.defaultPlates ?? 2) : "");
   const lastReps = done.length ? done[done.length-1].reps : null; const defR = e.timed ? (lastReps ?? e.repMin) : (lastReps ?? S.settings.defaultReps ?? 15);
   const quick = [...new Set([e.repMin, e.repMax, S.settings.defaultReps ?? 15].filter(n=>n>0))].sort((a,b)=>a-b);
-  const w = done.length ? done[done.length-1].w : defW;
+  const lastW = done.length ? done[done.length-1].w : ""; const w = (lastW!==""&&lastW!=null) ? lastW : defW;
   const totalSets = list.reduce((n,x)=>n+EX[x].sets,0), doneSets = Object.values(A.sets).reduce((n,a)=>n+a.length,0);
   const step = (id,val,dec,inc,attrs="") => `<div class="stepper"><button type="button" aria-label="decrease" onclick="bump('${id}',${dec})">−</button><input id="${id}" ${attrs} value="${esc(val)}"><button type="button" aria-label="increase" onclick="bump('${id}',${inc})">+</button></div>`;
   const plateNum = v => { const m=String(v??"").match(/[\d.]+/); return m?Number(m[0]):""; };
@@ -1422,12 +1422,36 @@ function editDateSheet(id){ const h=S.history.find(x=>x.id===id); if(!h) return;
   <div class="stack"><button class="btn primary block" onclick="saveWorkoutDate(${id})">Save date</button><button class="btn ghost block sm" onclick="closeModal()">Cancel</button></div>`); }
 function saveWorkoutDate(id){ const h=S.history.find(x=>x.id===id); const v=document.getElementById("edDate").value; if(!h||!/^\d{4}-\d{2}-\d{2}$/.test(v)){ toast("Pick a date"); return; } if(v>today()){ toast("That date is in the future"); return; }
   const old=new Date(h.date); const d=new Date(v+"T12:00:00"); d.setHours(old.getHours(),old.getMinutes(),old.getSeconds(),0); h.date=d.toISOString(); sortHistory(); save(); closeModal(); render(); toast("Date changed to "+fmtDate(h.date)); }
+/* Edit a saved workout directly: change weight/reps of any set, add or remove sets.
+   Does not touch the "last used weight" memory, does not start timers, keeps date, ratings and notes. */
+let ED=null;
 function editWorkout(id){ const h=S.history.find(x=>x.id===id); if(!h) return;
-  const begin=()=>{ const sets={}; h.sets.forEach(s=>{ const {set,...rest}=s; (sets[s.ex]=sets[s.ex]||[]).push(rest); });
-    S.active={dayId:h.dayId, start:Date.now(), i:0, sets, rating:{...(h.rating||{})}, notes:h.feedback?.notes||"", skipped:[...(h.skipped||[])], editId:h.id, backdate:dkey(h), fb:h.feedback||{}}; save(); go("workout"); };
-  if(S.active){ ask("A workout is already in progress","Discard it and edit the saved workout instead?",[{label:"Discard and edit",cls:"danger",fn:begin},{label:"Continue the current workout",cls:"primary",fn:()=>go("workout")}]); return; }
-  if(!PROGRAM.some(p=>p.id===h.dayId)){ toast("This day is not in the current plan"); return; }
-  begin(); }
+  const groups={}; const order=[]; h.sets.forEach(x=>{ if(!groups[x.ex]){ groups[x.ex]=[]; order.push(x.ex); } groups[x.ex].push({...x}); });
+  ED={id, groups, order}; edRender(); }
+function edCapture(){ if(!ED) return; ED.order.forEach(ex=>ED.groups[ex].forEach((x,i)=>{ const g=k=>document.getElementById(`ed_${ex}_${i}_${k}`);
+  if(g("w")) x.w = x.unit==="kg" ? (Number(g("w").value)||0) : g("w").value.trim();
+  if(g("r")) x.reps=Number(g("r").value)||0;
+  if(g("rl")){ x.repsL=Number(g("rl").value)||0; x.repsR=Number(g("rr").value)||0; x.reps=x.repsL; } })); }
+function edAdd(ex){ edCapture(); const a=ED.groups[ex]; const last=a[a.length-1]||{ex,unit:EX[ex]?.unit||"",w:"",reps:10}; a.push({...last}); edRender(); }
+function edDel(ex,i){ edCapture(); ED.groups[ex].splice(i,1); if(!ED.groups[ex].length){ delete ED.groups[ex]; ED.order=ED.order.filter(x=>x!==ex); } edRender(); }
+function edRender(){ const h=S.history.find(x=>x.id===ED.id); const unitLbl=u=>u==="kg"?"kg":u==="plates"?"plates":u==="machine"?"setting":"";
+  const rows=ED.order.map(ex=>{ const e=EX[ex]; const nm=e?exName(ex):ex; return `<div class="card tight" style="margin-bottom:10px"><b>${esc(nm)}</b>
+    ${ED.groups[ex].map((x,i)=>{ const hasW=x.unit!=="bodyweight"&&x.unit!=="seconds"; const uni=x.repsL!=null;
+      return `<div class="row" style="gap:8px;margin-top:8px;align-items:flex-end"><span class="muted small" style="width:38px">Set ${i+1}</span>
+      ${hasW?`<div style="flex:1"><label class="muted small">${unitLbl(x.unit)}</label><input id="ed_${ex}_${i}_w" inputmode="decimal" value="${esc(x.w??"")}" placeholder="enter"></div>`:""}
+      ${uni?`<div style="flex:1"><label class="muted small">Left</label><input id="ed_${ex}_${i}_rl" type="number" inputmode="numeric" value="${x.repsL}"></div><div style="flex:1"><label class="muted small">Right</label><input id="ed_${ex}_${i}_rr" type="number" inputmode="numeric" value="${x.repsR??x.repsL}"></div>`
+          :`<div style="flex:1"><label class="muted small">${x.unit==="seconds"?"Seconds":"Reps"}</label><input id="ed_${ex}_${i}_r" type="number" inputmode="numeric" value="${x.reps}"></div>`}
+      <button class="btn sm ghost" aria-label="Remove set" onclick="edDel('${ex}',${i})">✕</button></div>`; }).join("")}
+    <button class="btn sm ghost" style="margin-top:8px" onclick="edAdd('${ex}')">+ Add set</button></div>`; }).join("");
+  modal(`<h2>Edit ${fmtDate(h.date)} workout</h2><p class="small" style="margin:6px 0 12px">${esc(h.dayName||"")}. Change any weight or reps, then save. Your current weights are not affected.</p>
+  ${rows||'<div class="muted">No sets left in this workout.</div>'}
+  <div class="grid2" style="margin-top:12px"><button class="btn" onclick="ED=null;closeModal()">Cancel</button><button class="btn primary" onclick="edSave()">Save changes</button></div>`); }
+function edSave(){ edCapture(); const h=S.history.find(x=>x.id===ED.id); if(!h){ ED=null; closeModal(); return; }
+  const bad=ED.order.some(ex=>ED.groups[ex].some(x=>!(x.reps>0)));
+  if(bad){ toast("Every set needs reps above 0 (or remove that set)"); return; }
+  h.sets=ED.order.flatMap(ex=>ED.groups[ex].map((x,i)=>({...x,set:i+1})));
+  const kept=new Set(ED.order); if(h.rating) Object.keys(h.rating).forEach(k=>{ if(!kept.has(k)) delete h.rating[k]; });
+  ED=null; save(); closeModal(); render(); toast("Workout updated"); }
 function delWorkout(id){ ask("Delete this workout?","It will be removed from history and charts.",[{label:"Delete",cls:"danger",fn:()=>{S.history=S.history.filter(h=>h.id!==id); save(); render();}}]); }
 function exSeries(id){ const e=EX[id]; return S.history.map(h=>{ const ss=h.sets.filter(s=>s.ex===id); if(!ss.length) return null; const v = e.unit==="kg" ? Math.max(...ss.map(s=>Number(s.w)||0)) : e.unit==="seconds" ? Math.max(...ss.map(s=>s.reps)) : ss.reduce((n,s)=>n+s.reps,0); return {x:h.date, y:v}; }).filter(Boolean); }
 const CHART_PTS={};
