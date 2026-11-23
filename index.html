@@ -76,6 +76,7 @@ nav .brand{display:none}
 .wrap{flex-wrap:wrap}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 .grid2>*,.grid3>*{min-width:0}
+.calg{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.calc{aspect-ratio:1;border-radius:10px;background:var(--bg3);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;padding:0;border:0;color:var(--ink)}.calc .n{font-weight:700;font-size:14px}.calc .l{font-size:10px;opacity:.75;min-height:10px}.calc.done{color:#fff}.calc.done .l{opacity:.95;font-weight:700}.calc.fut{opacity:.4}.calc.skip{background:transparent;border:1.5px dashed var(--line)}.calc.today{outline:2px solid var(--ink);outline-offset:-2px}.ptable{width:100%;border-collapse:collapse}.ptable th{text-align:left;font-size:12px;color:var(--ink3);font-weight:600;padding:0 6px 6px 0}.ptable td{padding:10px 6px 10px 0;border-top:1px solid var(--line);vertical-align:middle;cursor:pointer}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .stack>*+*{margin-top:10px}
 .sec{margin:28px 0 12px}
@@ -888,7 +889,7 @@ FULL_CATALOGUE.forEach(r=>{ if(EX[r.i]) return; const cardio=r.g==="Cardio", str
 const KEY = "gym_tracker_v2"; // fresh start: previous v1 data is left untouched but not loaded
 const fresh = () => ({
   settings:{ protein:90, program:"trainer", videos:{}, schedule:{...DEFAULT_SCHEDULE}, nextDay:1, defaultDb:3, defaultPlates:2, defaultReps:15, rest:90, restCompound:120, reminders:false, names:{} },
-  weights:{}, history:[], measurements:[], nutrition:{}, active:null, exclude:{}, skips:{}, routine:{}, lastBackup:null, localUpdatedAt:null
+  weights:{}, history:[], measurements:[], nutrition:{}, active:null, exclude:{}, skips:{}, routine:{}, days:{}, lastBackup:null, localUpdatedAt:null
 });
 let S = load();
 function load(){ try{ const raw=localStorage.getItem(KEY); if(!raw) return fresh(); const d=JSON.parse(raw); const st=Object.assign(fresh().settings,d.settings||{});
@@ -918,6 +919,41 @@ function setRepsSheet(dayId,idx){ const list=ensureRoutine(dayId); const x=list[
   <div class="field"><label>Display name (optional)</label><input id="rsName" value="${esc(x.name||"")}" placeholder="${esc(e._def.name)}"></div>
   <button class="btn primary block" onclick="saveReps(${dayId},${idx})">Save</button>`); }
 function saveReps(dayId,idx){ const l=ensureRoutine(dayId); const y=l[idx]; y.sets=Number(document.getElementById('rsS').value)||y.sets; y.repMin=Number(document.getElementById('rsMin').value)||y.repMin; y.repMax=Math.max(y.repMin,Number(document.getElementById('rsMax').value)||y.repMax); const nm=document.getElementById('rsName').value.trim(); if(nm) y.name=nm; else delete y.name; save(); applyProgram(); dayView(dayId); }
+
+/* ===================== EDITABLE DAYS ===================== */
+const dayMins = d => d.minutes ? `, ${d.minutes} min` : "";
+function ensureDays(){ const prog=S.settings.program; S.days=S.days||{}; if(!S.days[prog]||!S.days[prog].length) S.days[prog]=JSON.parse(JSON.stringify(PROGRAMS[prog].days)); PROGRAM=S.days[prog]; return S.days[prog]; }
+const daysChanged = () => !!(S.days&&S.days[S.settings.program]&&S.days[S.settings.program].length);
+function nextInRotation(id){ const i=PROGRAM.findIndex(p=>p.id===id); return PROGRAM.length ? PROGRAM[(i+1)%PROGRAM.length].id : 1; }
+function editDaySheet(id,isNew){ const d=PROGRAM.find(p=>p.id===id); if(!d) return;
+  modal(`<h2>${isNew?"New day":"Edit Day "+d.id}</h2><p class="small" style="margin:6px 0 12px">Rename the day to whatever you are training, for example Back, Chest, or Back and Biceps.</p>
+  <div class="field"><label>Day name</label><input id="dnName" value="${esc(d.name)}" placeholder="e.g. Back and Biceps" maxlength="40"></div>
+  <div class="grid2"><div class="field"><label>Short label (optional)</label><input id="dnShort" value="${esc(d.short||"")}" placeholder="e.g. Back" maxlength="12"></div><div class="field"><label>Time (optional)</label><input id="dnMin" value="${esc(d.minutes||"")}" placeholder="e.g. 35 to 45" maxlength="16"></div></div>
+  <div class="field"><label>Note (optional)</label><input id="dnWhy" value="${esc(d.why||"")}" placeholder="Anything your trainer said about this day" maxlength="200"></div>
+  <button class="btn primary block" onclick="saveDayMeta(${id},${isNew?1:0})">${isNew?"Save and add exercises":"Save"}</button>
+  ${PROGRAM.length>1?`<button class="btn danger block sm" style="margin-top:10px" onclick="deleteDay(${id})">Delete this day</button>`:""}`);
+  setTimeout(()=>{ const el=document.getElementById("dnName"); if(el){ el.focus(); el.select(); } },80); }
+function saveDayMeta(id,isNew){ const days=ensureDays(); const d=days.find(p=>p.id===id); if(!d) return;
+  const nm=document.getElementById("dnName").value.trim(); if(!nm){ toast("Give the day a name"); return; }
+  d.name=nm; d.short=document.getElementById("dnShort").value.trim(); d.minutes=document.getElementById("dnMin").value.trim(); d.why=document.getElementById("dnWhy").value.trim();
+  save(); applyProgram(); render(); if(isNew) dayView(id); else { closeModal(); toast("Day updated"); } }
+function addDay(){ if(S.active){ toast("Finish the current workout first"); return; } const days=ensureDays(); const id=days.reduce((m,d)=>Math.max(m,d.id),0)+1;
+  days.push({ id, name:"Day "+id, short:"", minutes:"", why:"", warmup:[], example:[], exercises:[] });
+  const prog=S.settings.program; S.routine=S.routine||{}; S.routine[prog]=S.routine[prog]||{}; delete S.routine[prog][id];
+  save(); applyProgram(); render(); editDaySheet(id,true); }
+function deleteDay(id){ if(PROGRAM.length<=1){ toast("You need at least one day"); return; } if(S.active&&S.active.dayId===id){ toast("This day has a workout in progress"); return; }
+  const d=PROGRAM.find(p=>p.id===id);
+  ask(`Delete Day ${id}: ${d.name}?`,"Its exercise list is removed. Your logged history and weights stay. Days after it move up by one.",[{label:"Delete day",cls:"danger",fn:()=>{
+    const prog=S.settings.program; const days=ensureDays(); const r=(S.routine&&S.routine[prog])||{}; const newR={};
+    const kept=days.filter(x=>x.id!==id);
+    kept.forEach((x,i)=>{ const nid=i+1; if(r[x.id]) newR[nid]=r[x.id]; else if(x.id!==nid) newR[nid]=x.exercises.map(y=>typeof y==="string"?{id:y}:{...y}); if(S.settings.nextDay===x.id) S.settings._nd=nid; if(S.active&&S.active.dayId===x.id) S.active.dayId=nid; x.id=nid; });
+    S.days[prog]=kept; S.routine=S.routine||{}; S.routine[prog]=newR;
+    S.settings.nextDay = S.settings._nd || 1; delete S.settings._nd;
+    save(); applyProgram(); render(); toast("Day deleted"); }}]); }
+function resetDays(){ ask("Reset days?","Bring back the original day names and list for this plan. Days you added are removed. History is kept.",[{label:"Reset days",cls:"danger",fn:()=>{
+  const prog=S.settings.program; const orig=PROGRAMS[prog].days.map(d=>d.id); delete S.days[prog];
+  if(S.routine&&S.routine[prog]) Object.keys(S.routine[prog]).forEach(k=>{ if(!orig.includes(+k)) delete S.routine[prog][k]; });
+  if(!orig.includes(S.settings.nextDay)) S.settings.nextDay=1; save(); applyProgram(); render(); toast("Days reset"); }}]); }
 const SUGGEST = {
   legs:[["leg_curl","Hamstrings. Your leg day is all front of thigh; this balances the knee and protects the lower back."],["calf_raise","Calves. Nothing in the day trains the lower leg."],["butt_lift_bridge","Glutes, bodyweight. Safe on the lower back and helps squat depth."],["plank","Core. A strong trunk keeps your back safe in squats."],["goblet_squat","A safer way to learn the squat pattern with one dumbbell held at the chest."],["stiff_legged_dumbbell_deadlift","Hamstrings and glutes with the 3 kg dumbbells. Hinge at the hips, flat back."],["dumbbell_lunges","One leg at a time, evens out left and right."],["seated_calf_raise","Seated calves, easy on the knees."]],
   back:[["one_arm_row","One arm at a time, so your weaker left side has to do its own work."],["face_pull","Rear shoulders and posture. Pairs well with all the pulling."],["straight_arm_pulldown","Lats without the biceps taking over."],["hyperextensions_back_extensions","Lower back strength, useful after your soreness on leg day. Bodyweight only."],["dumbbell_shrug","Traps with the dumbbells you already use."],["close_grip_front_lat_pulldown","The inner grip pulldown as its own exercise so both grips get logged."],["biceps_curl","Biceps are already warm from pulling, curls fit naturally here."],["rear_delt_fly","Rear shoulders on the pec deck set backwards."]],
@@ -946,7 +982,7 @@ function phZoom(id,idx){ const s=photoSrcs(id); if(!s) return; let i=idx==null?0
 function photoSrcs(id){ if(PHOTOS[id]) return PHOTOS[id].img.map(b=>"data:image/jpeg;base64,"+b); if(typeof PHOTO_URLS!=="undefined"&&PHOTO_URLS[id]) return PHOTO_URLS[id]; return null; }
 function thumbOf(id){ const e=EX[id]; const s=photoSrcs(id); return s?`<img src="${s[1]||s[0]}" alt="" loading="lazy" onerror="imgFail(this,true)">`:(e.visual||'<span style="font-size:22px">🏋</span>'); }
 /* Apply the active program: reset every exercise to its defaults, then apply that program's sets/reps/name overrides. */
-function applyProgram(){ const key=PROGRAMS[S.settings.program]?S.settings.program:"trainer"; S.settings.program=key; PROGRAM=PROGRAMS[key].days;
+function applyProgram(){ const key=PROGRAMS[S.settings.program]?S.settings.program:"trainer"; S.settings.program=key; PROGRAM=(S.days&&S.days[key]&&S.days[key].length)?S.days[key]:PROGRAMS[key].days;
   EXERCISES.forEach(e=>{ Object.assign(e,e._def); });
   PROGRAM.forEach(d=>dayEntries(d).forEach(x=>{ const e=EX[x.id]; if(!e) return; if(x.sets) e.sets=x.sets; if(x.repMin) e.repMin=x.repMin; if(x.repMax) e.repMax=x.repMax; if(x.name) e.name=x.name; })); }
 function setProgram(key){ if(S.active){ ask("Switch plan?","A workout is in progress. Finish or discard it first.",[{label:"Go to workout",cls:"primary",fn:()=>go("workout")}]); return; } S.settings.program=key; S.settings.nextDay=1; save(); applyProgram(); render(); toast(PROGRAMS[key].name+" is active"); }
@@ -987,7 +1023,7 @@ function ask(title, text, buttons){ // buttons: [{label, cls, fn}]
 /* ===================== HELPERS ===================== */
 const isTrain = v => v==="train" || (typeof v==="number" && v>0);
 function trainingDays(){ return Object.values(S.settings.schedule).filter(isTrain).length; }
-function nextDayId(){ return S.settings.nextDay || 1; }
+function nextDayId(){ const n=S.settings.nextDay||1; return PROGRAM.some(p=>p.id===n) ? n : (PROGRAM[0]?PROGRAM[0].id:1); }
 /* Resolve which program day falls on a given date. "train" slots rotate Day 1, 2, 3 starting from the next-up day. */
 function dayForDate(dateObj){ const sd=S.settings.schedule[dateObj.getDay()]; if(typeof sd==="number"&&sd>0) return sd; if(sd!=="train") return null;
   const t=new Date(); t.setHours(0,0,0,0); const x=new Date(dateObj); x.setHours(0,0,0,0); const diff=Math.round((x-t)/86400000);
@@ -996,7 +1032,7 @@ function dayForDate(dateObj){ const sd=S.settings.schedule[dateObj.getDay()]; if
   for(let i=doneToday?1:0;i<diff;i++){ const y=new Date(t); y.setDate(t.getDate()+i); if(isTrain(S.settings.schedule[y.getDay()]) && !S.skips[ymd(y)]) n++; }
   if(S.skips[ymd(x)]) return null;
   if(diff===0 && doneToday){ const h=S.history.find(h=>dkey(h)===today()); return h.dayId; }
-  return ((nextDayId()-1+n)%3)+1; }
+  const L=PROGRAM.length||1; const s=Math.max(0,PROGRAM.findIndex(p=>p.id===nextDayId())); return PROGRAM[(s+n)%L].id; }
 function nextTrainingDate(){ const t=new Date(); for(let i=0;i<14;i++){ const y=new Date(t); y.setDate(t.getDate()+i); y.setHours(0,0,0,0); const key=ymd(y); if(isTrain(S.settings.schedule[y.getDay()]) && !S.skips[key] && !(i===0 && S.history.some(h=>dkey(h)===today()))) return y; } return null; }
 function skipDay(key,reason){ S.skips[key]=reason||"Skipped"; save(); render(); toast(`${key===today()?"Today":"That day"} marked as skipped`); }
 function unskipDay(key){ delete S.skips[key]; save(); render(); toast("Skip removed"); }
@@ -1006,7 +1042,7 @@ function skipSheet(key){ const label = key===today()?"today":new Date(key).toLoc
 function dateWord(y){ const t=new Date(); t.setHours(0,0,0,0); const diff=Math.round((y-t)/86400000); return diff===0?"today":diff===1?"tomorrow":DAYNAMES[y.getDay()]; }
 function exampleTable(day){ return `<table><tr><th>Exercise</th><th>Week 1 example</th><th>Week 4 example</th></tr>${day.example.map(r=>`<tr><td>${esc(r[0])}</td><td class="small">${esc(r[1])}</td><td class="small">${esc(r[2])}</td></tr>`).join("")}</table><div class="muted small" style="margin-top:8px">Example numbers only, to show how a session looks and how slowly the load moves. Your own logged numbers replace these.</div>`; }
 function dayView(id){ const day=PROGRAM.find(p=>p.id===id); const list=dayEntries(day); const dayNo=S.history.length+1;
-  modal(`<div class="row between"><h2>Day ${day.id}: ${esc(day.name)}</h2><span class="chip">${day.minutes} min</span></div><div class="muted small" style="margin:6px 0 12px">${list.length} exercises in this order. Arrows reorder, tap the sets chip to change reps, ✕ removes.</div>
+  modal(`<div class="row between"><h2 style="cursor:pointer" onclick="editDaySheet(${day.id})">Day ${day.id}: ${esc(day.name)} <span class="muted" style="font-size:15px">✎</span></h2>${day.minutes?`<span class="chip">${esc(day.minutes)} min</span>`:""}</div><div class="muted small" style="margin:6px 0 12px">${list.length} exercises in this order. Arrows reorder, tap the sets chip to change reps, ✕ removes.</div>
   ${list.map((x,i)=>{ const e=EX[x.id]; const tip=tipFor(x.id,dayNo); return `<div class="exrow"><div class="thumb" onclick="exDetail('${x.id}')">${thumbOf(x.id)}</div><div style="flex:1;min-width:0"><div class="name" onclick="exDetail('${x.id}')">${esc(exName(x.id))}</div><div class="muted small">${esc(e.equipment)}</div><div class="row wrap" style="gap:6px;margin-top:4px"><button class="chip" onclick="setRepsSheet(${id},${i})">${e.sets} x ${e.repMin}${e.repMax!==e.repMin?" to "+e.repMax:""} ${e.timed?"s":"reps"}</button>${tip.kind==="up"?'<span class="chip teal">↑ Increase weight today</span>':tip.kind==="learn"?'<span class="chip amber">Learning phase</span>':""}</div></div><div style="display:flex;flex-direction:column;gap:4px"><button class="btn sm ghost" style="min-height:30px;padding:2px 8px" onclick="moveInDay(${id},${i},-1)" ${i===0?"disabled":""}>▲</button><button class="btn sm ghost" style="min-height:30px;padding:2px 8px" onclick="moveInDay(${id},${i},1)" ${i===list.length-1?"disabled":""}>▼</button><button class="btn sm ghost" style="min-height:30px;padding:2px 8px;color:var(--red)" onclick="removeFromDay(${id},${i})">✕</button></div></div>`; }).join("")}
   <div class="grid2" style="margin-top:14px"><button class="btn" onclick="pickerSheet(${id})">+ Add exercise</button><button class="btn primary" onclick="closeModal();startWorkout(${id})">Start Day ${id}</button></div>
   ${routineChanged(day)?`<button class="btn ghost block sm" style="margin-top:8px" onclick="resetDay(${id})">Reset to the original list</button>`:""}`); }
@@ -1209,14 +1245,14 @@ function calDay(key,dow){ const sd=S.settings.schedule[dow]; const done=S.histor
   dayInfo(dow); }
 function dayInfo(dow){ let sd=S.settings.schedule[dow]; if(sd==="train"){ const t=new Date(); const x=new Date(t); x.setDate(t.getDate()+((dow-t.getDay()+7)%7)); sd=dayForDate(x)||nextDayId(); } if(typeof sd!=="number"||sd===0){ modal(`<h2>${DAYNAMES[dow]}</h2><p style="margin:10px 0">${sd==="walk"?"Rest or a light 20 to 30 minute walk.":"Rest day."} You can change this in Profile, Settings.</p><button class="btn block" onclick="closeModal()">Close</button>`); return; }
   dayView(sd); }
-function showWarmup(id){ const day=PROGRAM.find(p=>p.id===id); modal(`<h2>Warm-up</h2><p class="small" style="margin:6px 0 12px">About 8 minutes. It should raise your heart rate a little, not tire you out.</p><ol class="plain">${day.warmup.map(w=>`<li>${esc(w)}</li>`).join("")}</ol><button class="btn block" style="margin-top:14px" onclick="closeModal()">Done</button>`); }
+function showWarmup(id){ const day=PROGRAM.find(p=>p.id===id); modal(`<h2>Warm-up</h2><p class="small" style="margin:6px 0 12px">About 8 minutes. It should raise your heart rate a little, not tire you out.</p><ol class="plain">${((day.warmup&&day.warmup.length)?day.warmup:["5 minutes easy treadmill or bike","Light mobility for the muscles you will train","1 light warm-up set of the first exercise"]).map(w=>`<li>${esc(w)}</li>`).join("")}</ol><button class="btn block" style="margin-top:14px" onclick="closeModal()">Done</button>`); }
 
 /* ===================== WORKOUT ===================== */
 function chooseDay(){
   if(S.active){ go("workout"); return; }
   const sug=nextDayId();
   modal(`<h2>What are you training today?</h2><p class="small" style="margin:6px 0 14px">Pick any day. The highlighted one is next in your rotation so every muscle group gets its turn.</p>
-  <div class="daypick">${PROGRAM.map(d=>`<button class="${d.id===sug?"sug":""}" onclick="closeModal();startWorkout(${d.id})"><span class="num">${d.id}</span><span style="flex:1"><b>${esc(d.name)}</b><div class="muted small">${dayExercises(d).length} exercises, ${d.minutes} min${d.id===sug?" · suggested":""}</div></span><span class="muted">›</span></button>`).join("")}</div>
+  <div class="daypick">${PROGRAM.map(d=>`<button class="${d.id===sug?"sug":""}" onclick="closeModal();startWorkout(${d.id})"><span class="num">${d.id}</span><span style="flex:1"><b>${esc(d.name)}</b><div class="muted small">${dayExercises(d).length} exercises${dayMins(d)}${d.id===sug?" · suggested":""}</div></span><span class="muted">›</span></button>`).join("")}</div>
   <button class="btn block sm" style="margin-top:12px" onclick="pastSheet()">Log a past workout</button>
   <button class="btn ghost block sm" style="margin-top:8px" onclick="closeModal()">Not now</button>`);
 }
@@ -1226,17 +1262,20 @@ function pastSheet(){ const y=new Date(); y.setDate(y.getDate()-1);
   <div class="daypick">${PROGRAM.map(d=>`<button onclick="startPast(${d.id})"><span class="num">${d.id}</span><span style="flex:1"><b>${esc(d.name)}</b><div class="muted small">${dayExercises(d).length} exercises</div></span><span class="muted">›</span></button>`).join("")}</div>`); }
 function startPast(dayId){ const v=document.getElementById("pdDate").value; if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ toast("Pick a date first"); return; } if(v>today()){ toast("That date is in the future"); return; } closeModal(); startWorkout(dayId, v); }
 function startWorkout(dayId, backdate){
+  { const dd=PROGRAM.find(p=>p.id===dayId); if(dd && !dayExercises(dd).length){ toast("Add exercises to this day first"); dayView(dayId); return; } }
   if(S.active){ ask("A workout is already in progress","Discard it and start a new one? Its sets will not be saved.",[{label:"Discard and start new",cls:"danger",fn:()=>{S.active=null;startWorkout(dayId, backdate);}},{label:"Continue the current workout",cls:"primary",fn:()=>go("workout")}]); return; }
   S.active={dayId, start:Date.now(), i:0, sets:{}, rating:{}, notes:"", skipped:[], backdate: backdate&&backdate!==today() ? backdate : null}; save(); go("workout");
 }
 function vWorkout(){
   if(!S.active) return `<h1 style="margin-bottom:6px">Workout</h1>
    <div class="seg" style="margin-bottom:12px">${Object.values(PROGRAMS).map(pr=>`<button class="${S.settings.program===pr.key?"on":""}" onclick="setProgram('${pr.key}')">${esc(pr.name)}</button>`).join("")}</div>
-   <p style="margin-bottom:16px">${esc(PROGRAMS[S.settings.program].desc)} Six days a week, Sunday off. Each session you choose one of the three days; the app suggests the next in the rotation.</p>
-   ${PROGRAM.map(day=>`<div class="card" ${day.id===nextDayId()?'style="border-color:var(--amber)"':''}><div class="row between"><div><div class="muted">Day ${day.id}${day.id===nextDayId()?' <span class="chip amber" style="margin-left:6px">Up next</span>':''}</div><h2>${esc(day.name)}</h2><div class="muted" style="margin-top:4px">${dayExercises(day).length} exercises, ${day.minutes} min</div></div><span class="chip amber">${day.short}</span></div>
-   <p class="small" style="margin:12px 0">${esc(day.why)}</p>
-   <details style="margin-bottom:12px"><summary>Example session</summary><div class="body" style="overflow:auto">${exampleTable(day)}</div></details>
+   <p style="margin-bottom:16px">${esc(PROGRAMS[S.settings.program].desc)} Six days a week, Sunday off. Each session you choose one of your ${PROGRAM.length} days; the app suggests the next in the rotation. Tap ✎ to rename a day.</p>
+   ${PROGRAM.map(day=>`<div class="card" ${day.id===nextDayId()?'style="border-color:var(--amber)"':''}><div class="row between"><div><div class="muted">Day ${day.id}${day.id===nextDayId()?' <span class="chip amber" style="margin-left:6px">Up next</span>':''}</div><h2 style="cursor:pointer" onclick="editDaySheet(${day.id})">${esc(day.name)} <span class="muted" style="font-size:15px">✎</span></h2><div class="muted" style="margin-top:4px">${dayExercises(day).length} exercises${dayMins(day)}</div></div>${day.short?`<span class="chip amber">${esc(day.short)}</span>`:""}</div>
+   ${day.why?`<p class="small" style="margin:12px 0">${esc(day.why)}</p>`:'<div style="height:12px"></div>'}
+   ${day.example&&day.example.length?`<details style="margin-bottom:12px"><summary>Example session</summary><div class="body" style="overflow:auto">${exampleTable(day)}</div></details>`:""}
    <div class="grid2"><button class="btn" onclick="dayView(${day.id})">View / edit</button><button class="btn primary" onclick="startWorkout(${day.id})">Start</button></div></div>`).join("")}
+   <button class="btn block" style="margin-bottom:12px" onclick="addDay()">+ Add Day ${PROGRAM.reduce((m,d)=>Math.max(m,d.id),0)+1}</button>
+   ${daysChanged()?`<button class="btn ghost block sm" style="margin:-4px 0 12px" onclick="resetDays()">Reset days to the original plan</button>`:""}
    ${S.history.some(h=>dkey(h)===today())?`<div class="card tight row between"><div><b>Today is logged</b><div class="muted small">Made a mistake? Wipe today's session and do it again.</div></div><button class="btn sm danger" onclick="resetToday()">Reset today</button></div>`:""}
    <div class="card"><h3 style="margin-bottom:8px">Quick rest timer</h3><div class="grid3"><button class="btn" onclick="openTimer(60)">60 s</button><button class="btn" onclick="openTimer(90)">90 s</button><button class="btn" onclick="openTimer(120)">120 s</button></div></div>`;
   const A=S.active, day=PROGRAM.find(p=>p.id===A.dayId), list=dayExercises(day);
@@ -1342,7 +1381,7 @@ function saveWorkout(){
   const isPast=!!A.backdate; const when = isPast ? (()=>{ const d=new Date(A.backdate+"T12:00:00"); return d.toISOString(); })() : new Date().toISOString();
   const latest=S.history.length?Math.max(...S.history.map(h=>new Date(h.date).getTime())):0;
   S.history.push({ id:Date.now(), date:when, dayId:day.id, dayName:day.name, duration:isPast?0:Math.round((Date.now()-A.start)/60000), sets, rating:A.rating, skipped:A.skipped, prs:isPast?[]:findPRs(A.sets), feedback });
-  if(!isPast || new Date(when).getTime()>latest) S.settings.nextDay = (day.id%3)+1;
+  if(!isPast || new Date(when).getTime()>latest) S.settings.nextDay = nextInRotation(day.id);
   S.active=null; sortHistory(); save(); toast(isPast?"Past workout saved":"Workout saved"); go("home");
 }
 
@@ -1398,22 +1437,77 @@ function exDetail(id,fromDay){ const e=EX[id]; const last=lastPerf(id); const in
 
 /* ===================== PROGRESS ===================== */
 let chartEx="biceps_curl";
+let calMonth=null; let logAll=false;
+const DAY_COLORS=["#F59E0B","#3B82F6","#12B886","#E5484D","#8B5CF6","#EC4899","#0EA5E9","#84CC16"];
+function dayColor(h){ const idx=PROGRAM.findIndex(p=>p.id===h.dayId); return DAY_COLORS[((idx>=0?idx:(h.dayId||1)-1))%DAY_COLORS.length]; }
+function histName(h){ const d=PROGRAM.find(p=>p.id===h.dayId); return h.dayName || (d?d.name:"Day "+h.dayId); }
+const fmtLong = s => new Date(s).toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
+/* Best effort of one exercise in one session, as {v, label} so "first" and "now" can be compared. */
+function bestSet(e,ss){ if(e.unit==="kg"||e.unit==="plates"||e.unit==="machine"){ const top=[...ss].sort((a,b)=>(Number(b.w)||0)-(Number(a.w)||0)||(b.reps-a.reps))[0]; return {w:Number(top.w)||0, r:top.reps, label:setLabel(top).replace(" reps","")}; }
+  const top=[...ss].sort((a,b)=>b.reps-a.reps)[0]; return {w:0, r:top.reps, label:e.unit==="seconds"?`${top.reps} s`:`${top.reps} reps`}; }
+const pName = id => exName(id).replace(/^\d+\.\s*/,"").replace(/,\s*\d+(\.\d+)?\s*kg$/i,"");
+function progressRows(){ const out=[]; const seen=new Set();
+  [...S.history].reverse().forEach(h=>h.sets.forEach(s=>{ if(!seen.has(s.ex)&&EX[s.ex]) seen.add(s.ex); }));
+  seen.forEach(id=>{ const e=EX[id]; const all=S.history.map(h=>({d:new Date(h.date),ss:h.sets.filter(s=>s.ex===id)})).filter(x=>x.ss.length); if(!all.length) return;
+    const cut=new Date(); cut.setHours(0,0,0,0); cut.setDate(cut.getDate()-28);
+    const older=all.filter(x=>x.d<=cut); const base=older.length?older[older.length-1]:all[0]; const sess=all.map(x=>x.ss);
+    const a=bestSet(e,base.ss), b=bestSet(e,sess[sess.length-1]); const since=older.length?"4 wks ago":"first time"; let ch="Same", cls="";
+    const unitW=e.unit==="kg"?" kg":e.unit==="plates"?" plate":"";
+    if(sess.length===1){ ch="First time"; cls=""; }
+    else if(b.w>a.w){ ch=`↑ +${+(b.w-a.w).toFixed(1)}${unitW}${e.unit==="plates"&&b.w-a.w!==1?"s":""}`; cls="teal"; }
+    else if(b.w<a.w){ ch=`↓ ${+(b.w-a.w).toFixed(1)}${unitW}`; cls="red"; }
+    else if(b.r>a.r){ ch=`↑ +${b.r-a.r} ${e.unit==="seconds"?"s":"reps"}`; cls="teal"; }
+    else if(b.r<a.r){ ch=`↓ ${b.r-a.r} ${e.unit==="seconds"?"s":"reps"}`; cls="red"; }
+    out.push({id,first:a.label,now:b.label,ch,cls,n:sess.length,since}); });
+  return out; }
+function sessionSheet(hid){ const x=S.history.find(h=>h.id===hid); if(!x) return;
+  modal(`<div class="row" style="gap:10px;align-items:center"><span style="width:14px;height:14px;border-radius:50%;background:${dayColor(x)};flex:0 0 14px"></span><h2>${esc(histName(x))}</h2></div>
+  <div class="muted small" style="margin:4px 0 12px">${fmtLong(x.date)} · Day ${x.dayId} · ${x.sets.length} sets${x.duration?` · ${x.duration} min`:""}</div>
+  <table style="width:100%"><tr><th style="text-align:left">Exercise</th><th style="text-align:left">Weight × reps</th></tr>
+  ${Object.entries(groupBy(x.sets,"ex")).map(([id,ss])=>`<tr><td style="padding:6px 8px 6px 0;vertical-align:top"><b>${esc(EX[id]?pName(id):id)}</b></td><td class="small" style="padding:6px 0;white-space:nowrap">${ss.map(s=>setLabel(s).replace(" reps","")).join("<br>")}</td></tr>`).join("")}</table>
+  ${x.prs?.length?`<div class="chip teal" style="margin-top:10px">🏆 New best: ${x.prs.map(esc).join(", ")}</div>`:""}
+  ${x.feedback?`<div class="muted small" style="margin-top:10px">Energy ${esc(x.feedback.energy)}, ${esc(x.feedback.difficulty)}, pain: ${esc(x.feedback.pain)}${x.feedback.notes?`. ${esc(x.feedback.notes)}`:""}</div>`:""}
+  <div class="grid3" style="margin-top:14px"><button class="btn sm" onclick="editWorkout(${x.id})">Edit sets</button><button class="btn sm" onclick="editDateSheet(${x.id})">Edit date</button><button class="btn danger sm" onclick="closeModal();delWorkout(${x.id})">Delete</button></div>`); }
+function exTrendSheet(id){ const e=EX[id]; const rows=S.history.map(h=>({h,ss:h.sets.filter(s=>s.ex===id)})).filter(r=>r.ss.length);
+  modal(`<h2>${esc(pName(id))}</h2><div class="muted small" style="margin:4px 0 12px">Your best set in every session, newest at the bottom of the chart and top of the list.</div>
+  ${rows.length>1?`<div class="chart-wrap"><canvas id="cTrend"></canvas></div><div class="muted small" style="margin:6px 0 10px">${e.unit==="kg"?"Heaviest weight (kg)":e.unit==="seconds"?"Longest hold (s)":"Total reps"} per session</div>`:""}
+  <table style="width:100%"><tr><th style="text-align:left">Date</th><th style="text-align:left">Best set</th><th style="text-align:right">Sets</th></tr>
+  ${[...rows].reverse().map(r=>`<tr><td class="small" style="padding:6px 0">${fmtDate(r.h.date)}</td><td class="small">${esc(bestSet(e,r.ss).label)}</td><td class="small" style="text-align:right">${r.ss.length}</td></tr>`).join("")}</table>`);
+  if(rows.length>1) setTimeout(()=>lineChart("cTrend",[{pts:exSeries(id),color:"#ffb020"}]),60); }
+function calShift(n){ const m=calMonth||new Date(); calMonth=new Date(m.getFullYear(),m.getMonth()+n,1); render(); }
+function calendarCard(){ const now=new Date(); const m=calMonth||new Date(now.getFullYear(),now.getMonth(),1); const y=m.getFullYear(), mo=m.getMonth();
+  const first=new Date(y,mo,1), days=new Date(y,mo+1,0).getDate(); const lead=(first.getDay()+6)%7; // Monday first
+  const byDate={}; S.history.forEach(h=>{ (byDate[dkey(h)]=byDate[dkey(h)]||[]).push(h); });
+  const cells=[]; for(let i=0;i<lead;i++) cells.push('<div></div>');
+  let count=0;
+  for(let d=1;d<=days;d++){ const dt=new Date(y,mo,d); const key=ymd(dt); const hs=byDate[key]; const isToday=key===today(); const future=key>today();
+    if(hs){ count++; const h=hs[hs.length-1];
+      cells.push(`<button class="calc done" style="background:${dayColor(h)}" onclick="sessionSheet(${h.id})" title="${esc(histName(h))}"><span class="n">${d}</span><span class="l">D${h.dayId}</span></button>`); }
+    else if(S.skips[key]) cells.push(`<div class="calc skip${isToday?" today":""}" title="${esc(S.skips[key])}"><span class="n">${d}</span><span class="l">skip</span></div>`);
+    else { const rest=!isTrain(S.settings.schedule[dt.getDay()]); cells.push(`<div class="calc${isToday?" today":""}${future?" fut":""}"><span class="n">${d}</span><span class="l">${rest?"rest":(!future&&!isToday?"–":"")}</span></div>`); } }
+  const used=[...new Set(S.history.filter(h=>{const t=new Date(h.date);return t.getFullYear()===y&&t.getMonth()===mo;}).map(h=>h.dayId))];
+  const legend=PROGRAM.map(d=>`<span class="row" style="gap:6px;align-items:center;${used.includes(d.id)?"":"opacity:.45"}"><span style="width:12px;height:12px;border-radius:4px;background:${DAY_COLORS[PROGRAM.indexOf(d)%DAY_COLORS.length]}"></span><span class="small">D${d.id} ${esc(d.short||d.name)}</span></span>`).join("");
+  return `<div class="card"><div class="row between" style="margin-bottom:10px"><button class="btn sm ghost" onclick="calShift(-1)" aria-label="Previous month">‹</button><div style="text-align:center"><h3>${first.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</h3><div class="muted small">${count} workout${count===1?"":"s"} this month</div></div><button class="btn sm ghost" onclick="calShift(1)" aria-label="Next month" ${y===now.getFullYear()&&mo===now.getMonth()?"disabled":""}>›</button></div>
+  <div class="calg">${["M","T","W","T","F","S","S"].map(w=>`<div class="muted small" style="text-align:center;font-weight:700">${w}</div>`).join("")}${cells.join("")}</div>
+  <div class="row wrap" style="gap:8px 14px;margin-top:12px">${legend}</div><div class="muted small" style="margin-top:8px">Tap a coloured day to see what you did.</div></div>`; }
 function vProgress(){
-  const h=S.history; const trackable=EXERCISES.filter(e=>e.unit==="kg"||e.unit==="seconds"||e.unit==="plates");
-  return `<h1 style="margin-bottom:12px">Progress</h1>
-  <div class="grid3"><div class="card tight"><div class="muted">Workouts</div><div style="font-size:24px;font-weight:800">${h.length}</div></div><div class="card tight"><div class="muted">Sets</div><div style="font-size:24px;font-weight:800">${h.reduce((n,x)=>n+x.sets.length,0)}</div></div><div class="card tight"><div class="muted">Streak</div><div style="font-size:24px;font-weight:800">${currentStreak()}</div></div></div>
-  <div class="card tight"><div class="row between wrap"><div><b>Full report</b><div class="muted small">Every workout, exercise trend, measurement and protein log in one page. Save it as PDF or send it to your trainer.</div></div></div><div class="grid2" style="margin-top:12px"><button class="btn primary" onclick="openReport()">Open report</button><button class="btn" onclick="shareReport()">Share / save file</button></div></div>
-  <div class="card"><div class="row between" style="margin-bottom:10px"><h3>Strength</h3></div><select onchange="chartEx=this.value;render()" style="margin-bottom:10px">${trackable.map(e=>`<option value="${e.id}" ${chartEx===e.id?"selected":""}>${esc(exName(e.id))}</option>`).join("")}</select>
-   ${exSeries(chartEx).length?`<div class="chart-wrap"><canvas id="cStrength"></canvas></div><div class="muted small" style="margin-top:6px">${EX[chartEx].unit==="kg"?"Heaviest set weight (kg) per session":EX[chartEx].unit==="seconds"?"Longest hold (seconds) per session":"Total reps per session (plate weight differs by machine)"}</div>`:`<div class="muted" style="padding:20px 0;text-align:center">No sessions logged for this exercise yet. Your first workout will draw the first point.</div>`}</div>
-  <div class="card"><h3 style="margin-bottom:10px">Body weight</h3>${S.measurements.filter(m=>m.weight).length?'<div class="chart-wrap"><canvas id="cWeight"></canvas></div>':'<div class="muted" style="padding:20px 0;text-align:center">Add a measurement in Profile to start this chart.</div>'}</div>
-  <div class="card"><h3 style="margin-bottom:10px">Arm size</h3>${S.measurements.filter(m=>m.armR||m.armF).length?'<div class="chart-wrap"><canvas id="cArm"></canvas></div><div class="muted small" style="margin-top:6px">Amber = flexed, green = relaxed. Measure at the same spot each time.</div>':'<div class="muted" style="padding:20px 0;text-align:center">Record relaxed and flexed arm measurements in Profile.</div>'}</div>
-  <div class="card"><h3 style="margin-bottom:10px">Consistency, last 8 weeks</h3><canvas id="cWeeks" style="height:140px"></canvas><div class="muted small" style="margin-top:6px">Workouts per week. Target is ${trainingDays()}.</div></div>
-  <div class="sec"><h2>History</h2></div>
-  ${h.length?[...h].reverse().slice(0,30).map(x=>`<details><summary><span>${fmtDate(x.date)} · Day ${x.dayId}</span><span class="muted">${x.sets.length} sets · ${x.duration} min</span></summary><div class="body">
-    ${Object.entries(groupBy(x.sets,"ex")).map(([id,ss])=>`<div class="row between small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span>${esc(exName(id))}${x.rating?.[id]?` <span class="muted">(${x.rating[id]})</span>`:""}</span><span class="muted">${ss.map(setLabel).join(" | ")}</span></div>`).join("")}
-    ${x.prs?.length?`<div class="small" style="color:var(--teal);margin-top:6px">PB: ${x.prs.map(esc).join(", ")}</div>`:""}
-    <div class="muted small" style="margin-top:8px">Energy ${esc(x.feedback?.energy)}, ${esc(x.feedback?.difficulty)}, pain: ${esc(x.feedback?.pain)}${x.feedback?.notes?`. ${esc(x.feedback.notes)}`:""}</div>
-    <div class="grid3" style="margin-top:10px"><button class="btn sm" onclick="editWorkout(${x.id})">Edit sets</button><button class="btn sm" onclick="editDateSheet(${x.id})">Edit date</button><button class="btn danger sm" onclick="delWorkout(${x.id})">Delete</button></div></div></details>`).join(""):'<div class="card muted">No workouts yet. Your history builds from the first saved session.</div>'}`;
+  const h=S.history; const now=new Date(); const thisMonth=h.filter(x=>{const t=new Date(x.date);return t.getFullYear()===now.getFullYear()&&t.getMonth()===now.getMonth();}).length;
+  const rows=progressRows(); const up=rows.filter(r=>r.cls==="teal").length;
+  const log=[...h].reverse(); const shown=logAll?log:log.slice(0,8);
+  return `<div class="row between" style="margin-bottom:12px;align-items:center"><h1>Progress</h1><button class="btn sm" onclick="shareReport()">Share report</button></div>
+  <div class="grid3"><div class="card tight"><div class="muted small">This month</div><div style="font-size:26px;font-weight:800">${thisMonth}</div><div class="muted small">workouts</div></div><div class="card tight"><div class="muted small">All time</div><div style="font-size:26px;font-weight:800">${h.length}</div><div class="muted small">workouts</div></div><div class="card tight"><div class="muted small">Streak</div><div style="font-size:26px;font-weight:800">${currentStreak()}</div><div class="muted small">days in a row</div></div></div>
+  ${calendarCard()}
+  <div class="card"><h3>Getting stronger</h3><div class="muted small" style="margin:4px 0 10px">${rows.length?`Compared with 4 weeks ago (or your first session if the exercise is newer).${up?` <b style="color:var(--teal)">${up} exercise${up===1?"":"s"} improved.</b>`:""} Tap a row for every session.`:"Finish a workout and each exercise shows up here."}</div>
+   ${rows.map(r=>`<div class="exrow" style="cursor:pointer;padding:11px 0" onclick="exTrendSheet('${r.id}')"><div style="flex:1;min-width:0"><div class="name">${esc(pName(r.id))}</div><div class="small" style="margin-top:2px"><span class="muted">${r.n>1?r.since+": ":""}${esc(r.first)}</span>${r.n>1?` <span class="muted">→</span> <b>${esc(r.now)}</b>`:""}</div></div><span class="chip ${r.cls}" style="white-space:nowrap">${r.ch}</span></div>`).join("")}</div>
+  <div class="card"><div class="row between"><h3>Workout log</h3><span class="muted small">${h.length} total</span></div>
+   ${h.length?shown.map(x=>`<div class="exrow" style="cursor:pointer;padding:10px 0" onclick="sessionSheet(${x.id})"><span style="width:10px;align-self:stretch;border-radius:6px;background:${dayColor(x)};flex:0 0 10px"></span><div style="flex:1;min-width:0"><div class="name">${esc(histName(x))}</div><div class="muted small">${fmtLong(x.date)} · ${Object.keys(groupBy(x.sets,"ex")).length} exercises · ${x.sets.length} sets${x.prs?.length?" · 🏆":""}</div></div><span class="muted">›</span></div>`).join("")
+     +(log.length>8?`<button class="btn ghost block sm" style="margin-top:8px" onclick="logAll=!logAll;render()">${logAll?"Show less":`Show all ${log.length}`}</button>`:"")
+   :'<div class="muted" style="padding:16px 0;text-align:center">No workouts yet. Your log builds from the first saved session.</div>'}</div>
+  <details class="card" ontoggle="if(this.open)drawCharts()"><summary><b>Body and consistency charts</b></summary>
+   <h3 style="margin:14px 0 10px">Body weight</h3>${S.measurements.filter(m=>m.weight).length?'<div class="chart-wrap"><canvas id="cWeight"></canvas></div>':'<div class="muted small">Add a measurement in Profile to start this chart.</div>'}
+   <h3 style="margin:18px 0 10px">Arm size</h3>${S.measurements.filter(m=>m.armR||m.armF).length?'<div class="chart-wrap"><canvas id="cArm"></canvas></div><div class="muted small" style="margin-top:6px">Amber = flexed, green = relaxed.</div>':'<div class="muted small">Record arm measurements in Profile.</div>'}
+   <h3 style="margin:18px 0 10px">Workouts per week, last 8 weeks</h3><canvas id="cWeeks" style="height:140px"></canvas><div class="muted small" style="margin-top:6px">Target is ${trainingDays()} a week.</div>
+   <button class="btn block sm" style="margin-top:14px" onclick="openReport()">Open full report</button></details>`;
 }
 function groupBy(arr,k){ return arr.reduce((o,x)=>((o[x[k]]=o[x[k]]||[]).push(x),o),{}); }
 function editDateSheet(id){ const h=S.history.find(x=>x.id===id); if(!h) return;
@@ -1534,7 +1628,7 @@ function vProfile(){
    <div class="muted small" style="margin:-4px 0 12px">Starting values for a new exercise. Once you log a set, the app remembers what you used.</div>
    <div class="grid2"><div class="field"><label>Rest (s)</label><input type="number" id="sRest" value="${st.rest}"></div><div class="field"><label>Rest, big lifts (s)</label><input type="number" id="sRestC" value="${st.restCompound}"></div></div>
    <div class="field"><label>Training plan</label><div class="seg">${Object.values(PROGRAMS).map(pr=>`<button class="${S.settings.program===pr.key?"on":""}" onclick="setProgram('${pr.key}')">${esc(pr.name)}</button>`).join("")}</div><div class="muted small" style="margin-top:6px">${esc(PROGRAMS[S.settings.program].desc)} Your logged weights carry across both plans.</div></div>
-   <div class="field"><label>Next workout in the rotation</label><div class="seg">${PROGRAM.map(dd=>`<button onclick="S.settings.nextDay=${dd.id};save();render();toast('Next up: Day ${dd.id}')" class="${nextDayId()===dd.id?'on':''}">Day ${dd.id} ${dd.short}</button>`).join("")}</div><div class="muted small" style="margin-top:6px">Training days cycle Day 1, 2, 3 in order. When you press Start you still choose; this is only the suggestion.</div></div>
+   <div class="field"><label>Next workout in the rotation</label><div class="seg">${PROGRAM.map(dd=>`<button onclick="S.settings.nextDay=${dd.id};save();render();toast('Next up: Day ${dd.id}')" class="${nextDayId()===dd.id?'on':''}">Day ${dd.id} ${esc(dd.short||"")}</button>`).join("")}</div><div class="muted small" style="margin-top:6px">Training days cycle Day ${PROGRAM.map(x=>x.id).join(", ")} in order. When you press Start you still choose; this is only the suggestion.</div></div>
    <div class="field"><label>Weekly schedule</label><div class="stack">${[1,2,3,4,5,6,0].map(d=>`<div class="row between"><span>${DAYNAMES[d]}</span><select style="width:170px" onchange="S.settings.schedule[${d}]=(this.value==='walk'||this.value==='train')?this.value:Number(this.value);save();toast('Schedule updated')">${[[0,"Rest"],["walk","Rest / light walk"],["train","Train (rotate 1, 2, 3)"],[1,"Always Day 1: Push"],[2,"Always Day 2: Pull"],[3,"Always Day 3: Legs"]].map(([v,l])=>`<option value="${v}" ${String(st.schedule[d])===String(v)?"selected":""}>${l}</option>`).join("")}</select></div>`).join("")}</div></div>
    <div class="field"><label>Appearance</label><div class="seg">${[["dark","Dark"],["light","Light"],["auto","Match device"]].map(([v,l])=>`<button onclick="setTheme('${v}')" class="${(st.theme||'light')===v?'on':''}">${l}</button>`).join("")}</div></div>
    <div class="field"><label>Reminders</label><div class="row between"><span class="small">Show a reminder when you open the app on a training day</span><button class="btn sm ${st.reminders?"good":""}" onclick="S.settings.reminders=!S.settings.reminders;save();render()">${st.reminders?"On":"Off"}</button></div></div>
